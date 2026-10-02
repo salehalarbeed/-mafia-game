@@ -105,7 +105,7 @@ const ROLES = {
   suicidal:{name:"الانتحاري",team:"neutral",icon:"💣",ability:"عند موتك تختار لاعبًا حيًا يموت معك. تحصل على 3 نقاط إذا مت في الجولة الأولى، ونقطة في الثانية، ولا نقاط بعدها."},
   police:{name:"الشرطي",team:"neutral",icon:"👮",ability:"لديك طلقتان طوال اللعبة. كل ليلة يمكنك إطلاق طلقة أو الاحتفاظ بها. تحصل على نقطتين عن كل لاعب من المافيا تقتله."},
   survivor:{name:"الناجي",team:"neutral",icon:"🛡️",ability:"هدفك البقاء حيًا حتى نهاية اللعبة. تحصل على 3 نقاط إذا بقيت حيًا، بغض النظر عن الفريق الفائز."},
-  doctor:{name:"الدكتور",team:"town",icon:"💉",ability:"تحمي لاعبًا أو نفسك كل ليلة. الحماية تمنع محاولة قتل واحدة في تلك الليلة؛ إذا تعرض لمحاولة ثانية يموت."},
+  doctor:{name:"الدكتور",team:"town",icon:"💉",ability:"تحمي لاعبًا أو نفسك كل ليلة. الحماية تمنع أول محاولة إقصاء في الجولة من أي مصدر: المافيا أو الشرطي أو الانتحاري أو التصويت. تُستهلك مرة واحدة وتنتهي عند بدء الليل التالي."},
   journalist:{name:"الصحفي",team:"town",icon:"🔎",ability:"تحقق كل ليلة من لاعب، وتعرف سرًا هل ينتمي لفريق المافيا أم لا."},
   mayor:{name:"العمدة",team:"town",icon:"🎖️",ability:"صوتك يُحسب بصوتين. تحصل على نقطتين إذا فاز الشعب."},
   citizen:{name:"المواطن",team:"town",icon:"👤",ability:"ما عندك حركة ليلية. تشارك نهارًا في النقاش والتصويت."}
@@ -120,7 +120,7 @@ const TABLE = {
   18:[5,1,1,1,1,1,1,1,6],19:[5,1,1,1,1,1,1,1,7],20:[5,1,1,1,1,1,1,1,8]
 };
 function defaultDist(n){return TABLE[n]?[...TABLE[n]]:KEYS.map(()=>0);}
-function validDist(n,d){return !!TABLE[n]&&d.length===KEYS.length&&d.every((v,i)=>Number.isInteger(v)&&v===TABLE[n][i])&&d.reduce((a,b)=>a+b,0)===n;}
+function validDist(n,d){return !!TABLE[n]&&d.length===KEYS.length&&d.every(v=>Number.isInteger(v)&&v>=0&&v<=20)&&d[0]>=1&&d[0]+d[1]<n&&d.reduce((a,b)=>a+b,0)===n;}
 const isMafiaRole=r=>ROLES[r]?.team==='mafia';
 
 /* ---------- helpers ---------- */
@@ -186,7 +186,7 @@ const nameOf=id=>S.players.find(p=>p.id===id)?.name||'؟';
 const mySec=()=>S.secret&&S.room&&S.secret.game===S.room.gameNo?S.secret:null;
 const roleOf=id=>{const s=S.secrets[id];return s&&S.room&&s.game===S.room.gameNo?s.role:null};
 const alivePlayers=()=>S.players.filter(p=>p.alive);
-const curDist=()=>defaultDist(S.players.length);
+const curDist=()=>Array.isArray(S.room?.customDist)&&S.room.customDist.length===KEYS.length?[...S.room.customDist]:defaultDist(S.players.length);
 
 /* ---------- create / join ---------- */
 async function createRoom(){
@@ -263,7 +263,7 @@ function nightOutcome(players,secrets,actions,round,choose){
     const t=target(p.id);if(t&&t!==p.id&&!isMafiaRole(role(t))) tally[t]=(tally[t]||0)+1;
   });
   const {tops}=tallyTop(tally), mafiaTarget=tops.length?choose(tops):null;
-  const protection=new Set(living.filter(p=>role(p.id)==='doctor').map(p=>target(p.id)).filter(Boolean));
+  const shields=living.filter(p=>role(p.id)==='doctor').map(p=>({target:target(p.id),used:false})).filter(x=>x.target);
   const attempts=mafiaTarget?[{target:mafiaTarget,source:'mafia'}]:[], spent=[];
   living.filter(p=>role(p.id)==='police'&&(secrets[p.id].bullets??2)>0).forEach(p=>{
     const t=target(p.id);if(t&&t!==p.id){attempts.push({target:t,source:p.id});spent.push(p.id);}
@@ -272,15 +272,30 @@ function nightOutcome(players,secrets,actions,round,choose){
   for(const hit of attempts){
     if(deaths.includes(hit.target))continue;
     counts[hit.target]=(counts[hit.target]||0)+1;
-    if(protection.has(hit.target)&&counts[hit.target]===1){blocked.push(hit.target);continue;}
+    const guard=shields.find(x=>x.target===hit.target&&!x.used);
+    if(guard){guard.used=true;blocked.push(hit.target);continue;}
     deaths.push(hit.target);
     if(hit.source!=='mafia'&&role(hit.target)==='mafia')bonuses[hit.source]=(bonuses[hit.source]||0)+2;
   }
-  return {deaths,bonuses,spent,blocked,mafiaTarget};
+  return {deaths,bonuses,spent,blocked,mafiaTarget,shield:{shields,round}};
 }
 async function finishPhase(deaths,news,next,logs,options={}){
   const b=db.batch(), points={...options.points};
   deaths=[...new Set(deaths)].filter(id=>S.players.some(p=>p.id===id&&p.alive));
+  const saved=S.secrets._shield;
+  const guards=saved?.shields?saved.shields.map(x=>({...x})):saved?.target?[{target:saved.target,used:saved.used}]:[];
+  const blockedNow=[];
+  if(!options.protectionApplied&&saved&&saved.game===S.room.gameNo&&saved.round===S.room.round){
+    deaths=deaths.filter(id=>{const guard=guards.find(x=>x.target===id&&!x.used);if(!guard)return true;guard.used=true;blockedNow.push(id);return false;});
+    if(blockedNow.length){
+      b.set(col('secrets').doc('_shield'),{shields:guards,round:saved.round,game:saved.game});
+      const source=S.room.status==='revenge'?'اختيار الانتحاري':S.room.status==='vote'?'التصويت':'محاولة الإقصاء';
+      const protectionNews=`🛡️ حماية الدكتور أنقذت ${blockedNow.map(nameOf).join('، ')} من ${source}. استُهلكت الحماية.`;
+      news=S.room.status==='revenge'?S.room.news+'\n'+protectionNews:protectionNews;
+      logs=[protectionNews];
+    }
+  }
+  if(options.shield)b.set(col('secrets').doc('_shield'),{...options.shield,game:S.room.gameNo});
   deaths.forEach(id=>{
     b.update(col('players').doc(id),{alive:false});
     if(roleOf(id)==='suicidal') points[id]=(points[id]||0)+(S.room.round<=1?3:S.room.round===2?1:0);
@@ -298,18 +313,40 @@ async function finishPhase(deaths,news,next,logs,options={}){
     S.players.forEach(p=>{points[p.id]=(points[p.id]||0)+endPoints(roleOf(p.id),w,aliveIds.includes(p.id),S.players.length);});
     logs.push(winText(w));
   }
-  Object.entries(points).forEach(([id,add])=>{if(add)b.update(col('players').doc(id),{points:(S.players.find(p=>p.id===id)?.points||0)+add});});
+  Object.entries(points).forEach(([id,add])=>{if(add)b.update(col('players').doc(id),{points:firebase.firestore.FieldValue.increment(add)});});
   b.update(roomRef(S.code),upd);
   b.set(col('secrets').doc('_log'),{lines:[...(S.secrets._log?.lines||[]),...logs].slice(-100)});
   await b.commit();
 }
 const H={
-  adj(){toast('التوزيع ثابت حسب الجدول المعتمد');},
-  distReset(){roomRef(S.code).update({customDist:null});},
+  async adj(arg){
+    if(!isHost()||S.room.status!=='lobby')return;
+    const [key,step]=arg.split(':'),i=KEYS.indexOf(key),delta=Number(step);
+    if(i<0||![1,-1].includes(delta))return;
+    await db.runTransaction(async tx=>{
+      const ref=roomRef(S.code),snap=await tx.get(ref),r=snap.data();
+      if(!r||r.status!=='lobby'||r.hostUid!==UID)return;
+      const d=Array.isArray(r.customDist)&&r.customDist.length===KEYS.length?[...r.customDist]:defaultDist(S.players.length);
+      d[i]=Math.min(20,Math.max(0,d[i]+delta));tx.update(ref,{customDist:d});
+    });
+  },
+  async distReset(){if(isHost()&&S.room.status==='lobby')await roomRef(S.code).update({customDist:null});},
+  async adjustPoints(arg){
+    if(!isHost())return;const [id,step]=arg.split(':');const delta=Number(step);
+    if(!S.players.some(p=>p.id===id)||![1,-1].includes(delta))return;
+    await db.runTransaction(async tx=>{const ref=col('players').doc(id),snap=await tx.get(ref);if(snap.exists){const value=(snap.data().points||0)+delta;if(Number.isSafeInteger(value))tx.update(ref,{points:value});}});
+  },
+  async setPoints(id){
+    if(!isHost()||!S.players.some(p=>p.id===id))return;
+    const text=document.getElementById('points_'+id)?.value?.trim();
+    if(!text||!/^[-+]?\d+$/.test(text))return toast('اكتب عدد نقاط صحيح');
+    const value=Number(text);if(!Number.isSafeInteger(value)||Math.abs(value)>1000000)return toast('النقاط خارج النطاق المسموح');
+    await col('players').doc(id).update({points:value});toast('تم تعديل النقاط');
+  },
   async deal(){
     const n=S.players.length, d=curDist(), sum=d.reduce((a,b)=>a+b,0);
     if(!TABLE[n]) return toast('عدد اللاعبين المطلوب من 6 إلى 20');
-    if(!validDist(n,d)) return toast('توزيع الشخصيات لا يطابق الجدول المعتمد');
+    if(!validDist(n,d)) return toast('راجع التوزيع: المجموع يجب أن يساوي عدد اللاعبين، مع مافيا واحد على الأقل ولاعب خارج فريق المافيا');
     if(sum!==n) return toast(`مجموع الشخصيات (${sum}) لازم يساوي عدد اللاعبين (${n})`);
     if(d[0]<1) return toast('لازم يكون في مافيا واحد على الأقل');
     let bag=[]; KEYS.forEach((k,i)=>{for(let j=0;j<d[i];j++)bag.push(k)});
@@ -324,6 +361,7 @@ const H={
       b.update(col('players').doc(id),{alive:true});
     });
     clearSub(b,'actions',S.actions); clearSub(b,'votes',S.votes);
+    b.set(col('secrets').doc('_shield'),{shields:[],round:0,game});
     b.update(roomRef(S.code),{status:'day0',round:0,gameNo:game,news:'',winner:null,reveal:null,pendingRevenge:[],resumePhase:null});
     b.set(col('secrets').doc('_log'),{lines:[...(S.secrets._log?.lines||[]),`🎴 لعبة ${game}: توزعت الشخصيات على ${n} لاعبين`].slice(-100)});
     await b.commit();
@@ -331,6 +369,7 @@ const H={
   async night(){
     const b=db.batch(); clearSub(b,'actions',S.actions); clearSub(b,'votes',S.votes);
     Object.keys(S.secrets).filter(id=>isMafiaRole(roleOf(id))).forEach(id=>b.update(col('secrets').doc(id),{mafiaPicks:{}}));
+    b.set(col('secrets').doc('_shield'),{shields:[],round:S.room.round+1,game:S.room.gameNo});
     b.update(roomRef(S.code),{status:'night',round:S.room.round+1,news:''}); await b.commit();
   },
   async resolve(){
@@ -340,7 +379,7 @@ const H={
     const news=result.deaths.length?'💀 مات الليلة: '+result.deaths.map(nameOf).join('، '):'☀️ ما مات أحد الليلة';
     const logs=[`🌙 الليلة ${S.room.round}: هدف المافيا ${result.mafiaTarget?nameOf(result.mafiaTarget):'لا أحد'}`,
       ...result.spent.map(id=>`🔫 ${nameOf(id)} أطلق طلقة`),news];
-    await finishPhase(result.deaths,news,'morning',logs,{points:result.bonuses,secretUpdates:patches});
+    await finishPhase(result.deaths,news,'morning',logs,{points:result.bonuses,secretUpdates:patches,protectionApplied:true,shield:result.shield});
   },
   async resolveRevenge(){
     const id=S.room.pendingRevenge?.[0]; if(!id)return;
@@ -420,7 +459,7 @@ function vName(){return `<div class="top"><button class="btn small" data-a="home
 function vRules(){return `<div class="top"><button class="btn small" data-a="home">رجوع</button></div><h2>الشخصيات</h2>
   ${KEYS.map(k=>`<div class="box"><b style="font-size:20px">${ROLES[k].icon} ${ROLES[k].name}</b> <span class="tag ${ROLES[k].team}">${TEAM[ROLES[k].team]}</span>
   <p>${ROLES[k].ability}</p>${ROLE_IMG[k]?`<img class="thumb" src="${ROLE_IMG[k]}" alt="${ROLES[k].name}" loading="lazy">`:''}</div>`).join('')}
-  <div class="box"><b>الفوز</b><p>الشرطي: نقطتان عن كل مافيا يقتلها. الناجي: 3 نقاط عند بقائه. الانتحاري: 3 نقاط عند الموت في الجولة الأولى، ونقطة في الثانية.</p><p>حماية الدكتور لليل فقط؛ اختيار الانتحاري بعد موته ينفّذ مباشرة.</p><p>الشعب (الدكتور والصحفي والعمدة والمواطن) يفوز إذا طلع فريق المافيا كله، بما فيه الجاسوس.</p><p>فريق المافيا (المافيا والجاسوس) يفوز إذا صار عدد أفراده الأحياء يساوي أو أكثر من جميع الباقين. المحايدون لا يُحسبون ضمن الشعب ولا ينالون نقاط فوزه.</p></div>`;}
+  <div class="box"><b>الفوز</b><p>الشرطي: نقطتان عن كل مافيا يقتلها. الناجي: 3 نقاط عند بقائه. الانتحاري: 3 نقاط عند الموت في الجولة الأولى، ونقطة في الثانية.</p><p>حماية الدكتور تشمل جميع مصادر الإقصاء وتستمر حتى بدء الليل التالي. تمنع أول محاولة فقط، والمحاولة التالية تُقصي اللاعب.</p><p>الشعب (الدكتور والصحفي والعمدة والمواطن) يفوز إذا طلع فريق المافيا كله، بما فيه الجاسوس.</p><p>فريق المافيا (المافيا والجاسوس) يفوز إذا صار عدد أفراده الأحياء يساوي أو أكثر من جميع الباقين. المحايدون لا يُحسبون ضمن الشعب ولا ينالون نقاط فوزه.</p></div>`;}
 
 function rolePanel(){
   const sec=mySec(); if(!sec) return '';
@@ -495,15 +534,19 @@ function vTV(){
     <div class="grid" style="margin-top:20px">${S.players.map(p=>`<div class="pick ${p.alive?'':'dead'}">${p.alive?'':'💀 '}${esc(p.name)}</div>`).join('')}</div>`;
   return `<div class="tv">${topBar('غرفة '+esc(r.code),r.round?'جولة '+r.round:PHASE[r.status])}${body}</div>`;
 }
+function hostPointsBoard(){
+  return [...S.players].sort((a,b)=>(b.points||0)-(a.points||0)).map(p=>`<div class="box" style="margin-top:8px;padding:10px"><b>${esc(p.name)}</b><div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn small" data-a="pointsAdj" data-v="${p.id}:-1" aria-label="تقليل نقاط ${esc(p.name)}">−</button><input id="points_${p.id}" type="number" step="1" min="-1000000" max="1000000" value="${p.points||0}" aria-label="نقاط ${esc(p.name)}" style="width:90px;margin:0;padding:6px"><button class="btn small" data-a="pointsAdj" data-v="${p.id}:1" aria-label="زيادة نقاط ${esc(p.name)}">+</button><button class="btn small" data-a="pointsSet" data-v="${p.id}">حفظ</button></div></div>`).join('');
+}
 function vHost(){
   const r=S.room, st=r.status, alive=alivePlayers(), n=S.players.length; let ctrl='';
   if(st==='lobby'){
     const d=curDist(), sum=d.reduce((a,b)=>a+b,0), ok=validDist(n,d);
     ctrl=`<h3 style="margin-top:0">توزيع الشخصيات (${n} لاعبين)</h3>
     ${KEYS.map((k,i)=>`<div class="row"><span>${ROLES[k].icon} ${ROLES[k].name}</span><span style="display:flex;gap:8px;align-items:center">
-      <b style="min-width:24px;text-align:center">${d[i]}</b></span></div>`).join('')}
+      <button class="btn small" data-a="adj" data-v="${k}:-1" ${d[i]===0?'disabled':''} aria-label="تقليل ${ROLES[k].name}">−</button><b style="min-width:24px;text-align:center">${d[i]}</b><button class="btn small" data-a="adj" data-v="${k}:1" ${d[i]>=20?'disabled':''} aria-label="زيادة ${ROLES[k].name}">+</button></span></div>`).join('')}
     <p style="margin-top:8px;color:${ok?'var(--ok)':'#ff8a8a'}">المجموع ${sum} من ${n} ${ok?'✔':'— لازم يساوي عدد اللاعبين'}</p>
-    <p class="sub">التوزيع حسب الجدول المعتمد تلقائيًا، من 6 إلى 20 لاعبًا. المافيا لا تشمل الجاسوس في هذا الجدول.</p>
+    <p class="sub">تقدر تعدّل عدد كل شخصية قبل بدء اللعبة. المجموع لازم يساوي عدد اللاعبين (6 إلى 20). المافيا لا تشمل الجاسوس.</p>
+    ${r.customDist?'<button class="btn" data-a="distReset">ارجع للجدول الافتراضي</button>':''}
     <button class="btn main" data-a="h" data-v="deal" ${ok?'':'disabled'}>ابدأ اللعبة ووزّع الشخصيات</button>`;
   }
   if(st==='day0') ctrl=`<p class="sub">كل لاعب يكشف شخصيته على جواله. بعدين ابدأ الليل.</p><button class="btn main" data-a="h" data-v="night">ابدأ الليل 🌙</button>`;
@@ -530,7 +573,7 @@ function vHost(){
   </div><div>
     <div class="box"><h3 style="margin-top:0">اللاعبين (${alive.length}/${n})</h3>
       ${S.players.map(p=>`<div class="row"><span class="${p.alive?'':'dead'}">${esc(p.name)}</span>${st==='lobby'?`<button class="btn small" data-a="kick" data-v="${p.id}">شيل</button>`:tagRole(roleOf(p.id))}</div>`).join('')||'<p class="sub">ما دخل أحد للحين</p>'}</div>
-    <div class="box"><h3 style="margin-top:0">النقاط</h3>${board()}<button class="btn small" style="margin-top:10px" data-a="h" data-v="resetPoints">صفّر النقاط</button></div>
+    <div class="box"><h3 style="margin-top:0">النقاط</h3>${hostPointsBoard()}<button class="btn small" style="margin-top:10px" data-a="h" data-v="resetPoints">صفّر النقاط</button></div>
     <div class="box"><h3 style="margin-top:0">السجل (لك بس)</h3><div class="log">${[...(S.secrets._log?.lines||[])].reverse().map(l=>`<div>${esc(l)}</div>`).join('')}</div></div>
   </div></div>
   <button class="btn" data-a="leave">اطلع من الجلسة</button><button class="btn small" style="margin-top:10px" data-a="h" data-v="end">امسح الجلسة</button>`;
@@ -564,7 +607,7 @@ document.addEventListener('click',e=>{
     name:()=>joinPlayer(document.getElementById('name').value.trim()),
     leave, reveal:()=>{S.revealed=true;render()}, hide:()=>{S.revealed=false;render()},
     act:()=>act(v), skipShot, vote:()=>castVote(v),
-    adj:()=>H.adj(v), distReset:()=>H.distReset(), kick:()=>H.kick(v), h:()=>hostAction(v)
+    adj:()=>H.adj(v).catch(onErr), distReset:()=>H.distReset().catch(onErr), pointsAdj:()=>H.adjustPoints(v).catch(onErr), pointsSet:()=>H.setPoints(v).catch(onErr), kick:()=>H.kick(v), h:()=>hostAction(v)
   }[b.dataset.a]||(()=>{}))();
 });
 document.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(document.getElementById('code'))document.querySelector('[data-a=join]').click();else if(document.getElementById('name'))document.querySelector('[data-a=name]').click();});
