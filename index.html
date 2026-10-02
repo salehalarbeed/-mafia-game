@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>مافيا</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@500;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --night:#15111b; --panel:#201a28; --panel2:#2a2233; --line:#3a3045;
+  --brass:#c9a227; --blood:#9b1d30; --cream:#efe6d8; --muted:#a59cad; --ok:#4f9d69;
+  --display:"Reem Kufi","Tajawal",system-ui,sans-serif;
+  --body:"Tajawal",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--night);color:var(--cream);font-family:var(--body);font-size:17px;line-height:1.6;
+  padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);-webkit-tap-highlight-color:transparent}
+#app{max-width:640px;margin:0 auto;padding:20px 16px 60px}
+#app.wide{max-width:1200px}
+h1{font-family:var(--display);font-size:44px;font-weight:700;color:var(--brass);line-height:1.1}
+h2{font-family:var(--display);font-size:26px;font-weight:700;margin-bottom:10px}
+h3{font-size:18px;font-weight:700;margin:18px 0 8px;color:var(--brass)}
+p.sub{color:var(--muted)}
+.btn{display:block;width:100%;border:1px solid var(--line);background:var(--panel2);color:var(--cream);
+  font:700 18px var(--body);padding:15px 18px;border-radius:12px;cursor:pointer;margin-top:10px;text-align:center}
+.btn.main{background:var(--blood);border-color:var(--blood)}
+.btn.gold{background:var(--brass);border-color:var(--brass);color:#1b1408}
+.btn.small{display:inline-block;width:auto;font-size:14px;padding:7px 12px;margin:0}
+.btn:disabled{opacity:.4}
+.btn:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+input{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--cream);font:700 20px var(--body);
+  padding:14px;border-radius:12px;text-align:center;margin-top:10px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:14px}
+.warn{background:#3a2a10;border-color:var(--brass)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.dead{opacity:.45;text-decoration:line-through}
+.tag{font-size:13px;padding:2px 9px;border-radius:20px;background:var(--panel2);color:var(--muted);white-space:nowrap}
+.tag.mafia{background:#4a1520;color:#ffc9d0}.tag.people{background:#173226;color:#c6f0d3}.tag.neutral{background:#3a3115;color:#f3e2a6}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:8px}
+.code{font-family:var(--display);font-size:22px;color:var(--brass)}
+.phase{font-family:var(--display);font-size:32px;text-align:center;margin:8px 0}
+.news{font-size:20px;text-align:center;white-space:pre-line}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px}
+.pick{border:1px solid var(--line);background:var(--panel2);color:var(--cream);font:700 17px var(--body);padding:16px 8px;border-radius:12px;cursor:pointer}
+.pick.on{border-color:var(--brass);background:#3b3014}
+.log{font-size:14px;color:var(--muted);max-height:220px;overflow:auto}
+.center{text-align:center}
+#toast{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:var(--brass);color:#1b1408;
+  font-weight:700;padding:10px 18px;border-radius:30px;display:none;z-index:9;max-width:90%}
+.qr{background:#fff;padding:12px;border-radius:12px;display:inline-block;margin-top:10px}
+/* the role card */
+.card{perspective:1200px;width:min(78vw,300px);aspect-ratio:2/3;margin:16px auto;cursor:pointer}
+.card .in{position:relative;width:100%;height:100%;transition:transform .7s;transform-style:preserve-3d}
+.card.flip .in{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:18px;
+  border:3px solid var(--brass);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center}
+.back{background:repeating-linear-gradient(45deg,#2a1520 0 10px,#22101a 10px 20px)}
+.back b{font-family:var(--display);font-size:40px;color:var(--brass)}
+.front{background:var(--panel);transform:rotateY(180deg)}
+.front .ic{font-size:72px;line-height:1}
+.front .nm{font-family:var(--display);font-size:38px;color:var(--brass);margin:8px 0}
+.front small{color:var(--muted);font-size:15px}
+/* TV */
+.tv h1{font-size:72px}.tv .phase{font-size:64px}.tv .news{font-size:34px}
+.tv .grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.tv .pick{font-size:24px;cursor:default}
+.cols{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:900px){.cols{grid-template-columns:1fr 1fr}}
+@media(prefers-reduced-motion:reduce){.card .in{transition:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<script>
+/* ============ ضع بيانات Firebase هنا ============ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAYL03PV9lFz11E_Vs_8IxncEesnRhSPfw",
+  authDomain: "mafia-18448.firebaseapp.com",
+  projectId: "mafia-18448",
+  storageBucket: "mafia-18448.firebasestorage.app",
+  messagingSenderId: "309764501281",
+  appId: "1:309764501281:web:bd6aea0cd2a5b3081fd860"
+};
+/* ================================================= */
+
+let db = null, READY = false;
+try{
+  if(FIREBASE_CONFIG.apiKey !== "REPLACE_ME"){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore(); READY = true;
+  }
+}catch(e){ console.error(e); }
+
+const ROLES = {
+  mafia:{name:"المافيا",team:"mafia",icon:"🔪",ability:"كل ليلة تختار مع المافيا شخص تقتلونه. الأغلبية تقرر.",points:"3 نقاط إذا فازت المافيا (نقطتين إذا اللاعبين 8 أو أقل)."},
+  spy:{name:"الجاسوس",team:"mafia",icon:"🕵️",ability:"من بداية اللعبة تعرف هوية واحد من أصحاب الأدوار الخاصة بالشعب.",points:"يشارك المافيا نقاط الفوز."},
+  suicide:{name:"الانتحاري",team:"neutral",icon:"💣",ability:"إذا مت، تختار شخص واحد يموت معاك فوراً.",points:"3 نقاط إذا مت بالجولة الأولى، 2 بالثانية، 1 بالثالثة."},
+  police:{name:"الشرطي",team:"neutral",icon:"🔫",ability:"عندك طلقتين طول اللعبة، تستخدمهم بأي ليلة تبي.",points:"نقطتين عن كل واحد من المافيا تقتله."},
+  survivor:{name:"الناجي",team:"neutral",icon:"🛡️",ability:"ما عندك قدرة. هدفك تبقى حي لآخر اللعبة.",points:"3 نقاط إذا بقيت حي للنهاية."},
+  doctor:{name:"الدكتور",team:"people",icon:"💉",ability:"كل ليلة تحمي شخص من أول محاولة قتل عليه.",points:"نقطتين إذا فاز الشعب."},
+  journalist:{name:"الصحفي",team:"people",icon:"📰",ability:"كل ليلة تختار شخص وتعرف إذا هو مافيا أو لا.",points:"نقطتين إذا فاز الشعب."},
+  mayor:{name:"العمدة",team:"people",icon:"🎩",ability:"صوتك بالتصويت يحسب صوتين.",points:"نقطتين إذا فاز الشعب."},
+  citizen:{name:"المواطن",team:"people",icon:"👤",ability:"ما عندك قدرة. اعتمد على النقاش والتصويت.",points:"نقطتين إذا فاز الشعب."}
+};
+const ORDER = ["mafia","spy","suicide","police","survivor","doctor","journalist","mayor","citizen"];
+const TEAM = {mafia:"المافيا",people:"الشعب",neutral:"محايد"};
+const DIST = {
+  6:[1,0,0,0,0,1,1,0,3],7:[1,0,1,0,0,1,1,0,3],8:[2,0,1,0,1,1,1,0,2],
+  9:[2,0,1,1,1,1,1,1,1],10:[2,0,1,1,1,1,1,1,2],11:[2,1,1,1,1,1,1,1,2],
+  12:[3,1,1,1,1,1,1,1,2],13:[3,1,1,1,1,1,1,1,3],14:[3,1,1,1,1,1,1,1,4],
+  15:[4,1,1,1,1,1,1,1,4],16:[4,1,1,1,1,1,1,1,5],17:[4,1,1,1,1,1,1,1,6],
+  18:[5,1,1,1,1,1,1,1,6],19:[5,1,1,1,1,1,1,1,7],20:[5,1,1,1,1,1,1,1,8]
+};
+function distFor(n){
+  let arr;
+  if(n < 6){ arr=[1,0,0,0,0,n>=3?1:0,n>=4?1:0,0,0]; arr[8]=n-arr.reduce((a,b)=>a+b,0); }
+  else if(n > 20){ arr=[...DIST[20]]; arr[8]+=n-20; }
+  else arr=DIST[n];
+  const out={}; ORDER.forEach((r,i)=>out[r]=arr[i]); return out;
+}
+
+/* ---------- helpers ---------- */
+const $app = document.getElementById('app');
+const ls = {get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},
+            set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},
+            del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const genId=()=>'p'+Math.random().toString(36).slice(2,10);
+const genCode=()=>String(Math.floor(1000+Math.random()*9000));
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ref=c=>db.collection('mafiaRooms').doc(c);
+const team=p=>ROLES[p.role]?.team;
+let tt; function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',2600)}
+
+const S = {screen:'home', code:null, mode:null, room:null, unsub:null, pid:null, flipped:false, joinTV:false, showCard:false};
+const params = new URLSearchParams(location.search);
+const joinUrl = c => location.origin + location.pathname + '?room=' + c;
+
+/* ---------- enter / leave ---------- */
+function enter(code, mode){
+  S.code=code; S.mode=mode; S.pid=ls.get('mafia_pid_'+code); S.flipped=false;
+  ls.set('mafia_last', JSON.stringify({code,mode}));
+  if(S.unsub) S.unsub();
+  S.unsub = ref(code).onSnapshot(s=>{
+    if(!s.exists){ toast('الجلسة انتهت'); leave(); return; }
+    const prev = S.room; S.room = s.data();
+    if(prev && prev.gameNo !== S.room.gameNo) S.flipped=false;
+    render();
+  }, e=>{ console.error(e); toast('مشكلة بالاتصال بـ Firebase'); });
+  S.screen='room'; render();
+}
+function leave(){ if(S.unsub) S.unsub(); S.unsub=null; S.room=null; S.code=null; S.mode=null; ls.del('mafia_last'); S.screen='home'; history.replaceState(null,'',location.pathname); render(); }
+const isHost = () => S.mode==='host' && S.room && ls.get('mafia_host_'+S.code)===S.room.hostToken;
+const me = () => S.room?.players.find(p=>p.id===S.pid);
+const byId = id => S.room.players.find(p=>p.id===id);
+const upd = o => ref(S.code).update(o).catch(e=>{console.error(e);toast('ما انحفظ، جرب مرة ثانية')});
+
+async function createRoom(){
+  if(!READY) return toast('لازم تحط بيانات Firebase أول');
+  let code;
+  for(let i=0;i<6;i++){ code=genCode(); const s=await ref(code).get(); if(!s.exists) break; }
+  const hostToken=genId();
+  await ref(code).set({code,hostToken,status:'lobby',round:0,gameNo:0,players:[],actions:{},votes:{},
+    log:[],news:'',winner:null,pendingSuicide:null,suicidePick:null,afterSuicide:null,created:Date.now()});
+  ls.set('mafia_host_'+code,hostToken); enter(code,'host');
+}
+async function joinFlow(code){
+  if(!READY) return toast('لازم تحط بيانات Firebase أول');
+  if(!/^\d{4}$/.test(code)) return toast('اكتب كود من 4 أرقام');
+  const s=await ref(code).get(); if(!s.exists) return toast('ما في جلسة بهالكود');
+  if(S.joinTV){ S.joinTV=false; return enter(code,'tv'); }
+  const pid=ls.get('mafia_pid_'+code);
+  if(pid && s.data().players.some(p=>p.id===pid)) return enter(code,'player');
+  S.code=code; S.screen='name'; render();
+}
+async function joinPlayer(name){
+  if(!name) return toast('اكتب اسمك');
+  const code=S.code, key='mafia_pid_'+code, pid=ls.get(key)||genId();
+  try{
+    await db.runTransaction(async t=>{
+      const s=await t.get(ref(code)); if(!s.exists) throw new Error('ما في جلسة بهالكود');
+      const r=s.data(); if(r.players.some(p=>p.id===pid)) return;
+      if(r.status!=='lobby') throw new Error('اللعبة بدت، انتظر الجولة الجاية');
+      if(r.players.some(p=>p.name===name)) throw new Error('الاسم مستخدم، اختار اسم ثاني');
+      t.update(ref(code),{players:[...r.players,{id:pid,name,role:null,alive:true,points:0,shots:2,spyKnows:null,diedRound:null}]});
+    });
+  }catch(e){ return toast(e.message); }
+  ls.set(key,pid); enter(code,'player');
+}
+
+/* ---------- game logic (host) ---------- */
+function winnerOf(players){
+  const alive=players.filter(p=>p.alive), m=alive.filter(p=>team(p)==='mafia').length;
+  if(m===0) return 'people';
+  if(m >= alive.length-m) return 'mafia';
+  return null;
+}
+function kill(players,id,round,log,news){
+  const p=players.find(x=>x.id===id); if(!p||!p.alive) return null;
+  p.alive=false; p.diedRound=round;
+  if(p.role==='suicide'){ const pts=round<=1?3:round===2?2:round===3?1:0; p.points+=pts; if(pts) log.push(`💣 ${p.name} أخذ ${pts} نقاط`); return p.id; }
+  return null;
+}
+function finish(players,w,log){
+  const big=players.length>8;
+  players.forEach(p=>{
+    if(w==='people' && team(p)==='people') p.points+=2;
+    if(w==='mafia' && team(p)==='mafia') p.points+=big?3:2;
+    if(p.role==='survivor' && p.alive){ p.points+=3; log.push(`🛡️ ${p.name} نجا (+3)`); }
+  });
+  log.push(w==='people'?'🏆 فاز الشعب':'🏆 فازت المافيا');
+}
+// after deaths: suicide pick, then win check, then go to next status
+function settle(players,log,news,next,pending){
+  const base={players,log,news};
+  if(pending) return upd({...base,status:'suicide',pendingSuicide:pending,suicidePick:null,afterSuicide:next});
+  const w=winnerOf(players);
+  if(w){ finish(players,w,log); return upd({...base,status:'over',winner:w}); }
+  upd({...base,status:next});
+}
+const H = {
+  deal(){
+    const r=S.room, n=r.players.length; if(n<3) return toast('تحتاج 3 لاعبين على الأقل');
+    const d=distFor(n); let bag=[]; ORDER.forEach(k=>{for(let i=0;i<d[k];i++)bag.push(k)}); bag=shuffle(bag);
+    const players=r.players.map((p,i)=>({...p,role:bag[i],alive:true,shots:2,spyKnows:null,diedRound:null}));
+    const spy=players.find(p=>p.role==='spy');
+    if(spy){ const c=players.filter(p=>['doctor','journalist','mayor'].includes(p.role)); if(c.length){const t=c[Math.floor(Math.random()*c.length)]; spy.spyKnows={name:t.name,role:t.role};} }
+    upd({players,status:'reveal',round:0,gameNo:(r.gameNo||0)+1,actions:{},votes:{},log:[`🎴 لعبة ${(r.gameNo||0)+1}: توزعت الأدوار على ${n} لاعبين`],news:'',winner:null,pendingSuicide:null,suicidePick:null});
+  },
+  night(){ const r=S.room; upd({status:'night',round:r.round+1,actions:{},votes:{},news:'',log:[...r.log,`🌙 الليلة ${r.round+1}`]}); },
+  resolve(){
+    const r=S.room, players=clone(r.players), A=r.actions||{}, log=[...r.log], news=[];
+    const P=id=>players.find(p=>p.id===id);
+    const tally={}; players.filter(p=>p.alive&&p.role==='mafia').forEach(p=>{const t=A[p.id]?.target; if(t) tally[t]=(tally[t]||0)+1;});
+    const max=Math.max(0,...Object.values(tally)), tops=Object.keys(tally).filter(k=>tally[k]===max);
+    const attempts=[];
+    if(tops.length){ const t=tops[Math.floor(Math.random()*tops.length)]; attempts.push({by:'mafia',target:t}); log.push(`🔪 المافيا اختارت ${P(t).name}`); }
+    const pol=players.find(p=>p.role==='police'&&p.alive);
+    if(pol){ const t=A[pol.id]?.target; if(t&&t!=='skip'&&pol.shots>0){ pol.shots--; attempts.push({by:'police',target:t}); log.push(`🔫 الشرطي طلق على ${P(t).name}`);} }
+    const doc=players.find(p=>p.role==='doctor'&&p.alive), prot=doc?A[doc.id]?.target:null; let shield=!!prot;
+    if(prot) log.push(`💉 الدكتور حمى ${P(prot).name}`);
+    const jr=players.find(p=>p.role==='journalist'&&p.alive); if(jr&&A[jr.id]?.target) log.push(`📰 الصحفي فحص ${P(A[jr.id].target).name}`);
+    let pending=null; const dead=[];
+    attempts.forEach(a=>{
+      const t=P(a.target); if(!t||!t.alive) return;
+      if(shield && a.target===prot){ shield=false; news.push('💉 الدكتور أنقذ شخص الليلة'); return; }
+      if(a.by==='police' && team(t)==='mafia'){ pol.points+=2; log.push(`🔫 الشرطي قتل مافيا (+2)`); }
+      pending = kill(players,t.id,r.round,log,news) || pending; dead.push(t.name);
+    });
+    news.unshift(dead.length?`💀 مات الليلة: ${dead.join('، ')}`:'😮‍💨 ما مات أحد الليلة');
+    log.push(news[0]);
+    settle(players,log,news.join('\n'),'morning',pending);
+  },
+  vote(){ upd({status:'vote',votes:{}}); },
+  closeVote(){
+    const r=S.room, players=clone(r.players), log=[...r.log], tally={};
+    Object.entries(r.votes||{}).forEach(([v,t])=>{const vp=players.find(p=>p.id===v); if(vp&&vp.alive) tally[t]=(tally[t]||0)+(vp.role==='mayor'?2:1);});
+    const max=Math.max(0,...Object.values(tally)), tops=Object.keys(tally).filter(k=>tally[k]===max);
+    let news, pending=null;
+    if(tops.length===1){ const t=players.find(p=>p.id===tops[0]); pending=kill(players,t.id,r.round,log,[]); news=`⚖️ الشعب طلّع ${t.name} (${max} أصوات)`; }
+    else news = tops.length ? '⚖️ تعادل بالأصوات، ما طلع أحد' : '⚖️ ما صوّت أحد';
+    log.push(news); settle(players,log,news,'result',pending);
+  },
+  suicide(target){
+    const r=S.room, players=clone(r.players), log=[...r.log], s=players.find(p=>p.id===r.pendingSuicide);
+    let news=r.news;
+    if(target){ const t=players.find(p=>p.id===target); t.alive=false; t.diedRound=r.round; news+=`\n💣 ${s.name} أخذ معاه ${t.name}`; log.push(`💣 ${s.name} فجّر ${t.name}`); }
+    const w=winnerOf(players);
+    if(w){ finish(players,w,log); return upd({players,log,news,status:'over',winner:w,pendingSuicide:null}); }
+    upd({players,log,news,status:r.afterSuicide||'morning',pendingSuicide:null});
+  },
+  lobby(){ upd({status:'lobby',players:S.room.players.map(p=>({...p,role:null,alive:true})),news:'',winner:null}); },
+  kick(id){ if(confirm('تشيل هاللاعب؟')) upd({players:S.room.players.filter(p=>p.id!==id)}); },
+  resetPoints(){ if(confirm('تصفّر النقاط؟')) upd({players:S.room.players.map(p=>({...p,points:0}))}); },
+  end(){ if(confirm('تنهي الجلسة وتمسحها؟')) ref(S.code).delete(); }
+};
+
+/* ---------- player actions ---------- */
+function actionType(p){
+  if(!p||!p.alive||S.room.status!=='night') return null;
+  if(p.role==='mafia') return 'kill';
+  if(p.role==='doctor') return 'protect';
+  if(p.role==='journalist') return 'check';
+  if(p.role==='police' && p.shots>0) return 'shoot';
+  return null;
+}
+async function act(target){
+  const m=me(), type=actionType(m); if(!type) return;
+  let result=null;
+  if(type==='check'){ const t=byId(target); result = team(t)==='mafia' ? 'مافيا 🔴' : 'مو مافيا 🟢'; }
+  await upd({['actions.'+S.pid]:{type,target,result}});
+}
+
+/* ---------- views ---------- */
+const PHASE = {lobby:'الانتظار',reveal:'كشف الأدوار',night:'الليل 🌙',suicide:'الانتحاري 💣',morning:'الصباح ☀️',vote:'التصويت ⚖️',result:'نتيجة التصويت',over:'نهاية اللعبة'};
+const tag = p => `<span class="tag ${team(p)}">${ROLES[p.role].icon} ${ROLES[p.role].name}</span>`;
+const board = (players) => [...players].sort((a,b)=>b.points-a.points).map((p,i)=>`<div class="row"><span>${i+1}. ${esc(p.name)}</span><b>${p.points}</b></div>`).join('');
+
+function vHome(){
+  const last = JSON.parse(ls.get('mafia_last')||'null');
+  return `
+  <div style="margin-top:8vh">
+    <h1>مافيا</h1>
+    <p class="sub">لعبة جماعية: المشرف على الآيباد، التلفزيون للعرض، وكل لاعب من جواله.</p>
+  </div>
+  ${READY?'':`<div class="box warn">⚠️ اللعبة ما راح تشتغل قبل ما تحط بيانات Firebase داخل الملف (FIREBASE_CONFIG).</div>`}
+  <div style="margin-top:24px">
+    <button class="btn main" data-a="create">أنشئ جلسة (المشرف)</button>
+    <button class="btn" data-a="goJoin">ادخل كلاعب</button>
+    <button class="btn" data-a="goTV">افتح شاشة التلفزيون</button>
+    ${last?`<button class="btn gold" data-a="resume">ارجع للجلسة ${esc(last.code)}</button>`:''}
+    <button class="btn" data-a="rules">الشخصيات</button>
+  </div>`;
+}
+function vJoin(){
+  return `<div class="top"><button class="btn small" data-a="home">رجوع</button></div>
+  <h2>${S.joinTV?'شاشة التلفزيون':'الانضمام'}</h2><p class="sub">اكتب كود الغرفة</p>
+  <input id="code" inputmode="numeric" maxlength="4" placeholder="0000" value="${esc(params.get('room')||'')}">
+  <button class="btn main" data-a="join">كمّل</button>`;
+}
+function vName(){
+  return `<div class="top"><button class="btn small" data-a="home">رجوع</button><span class="code">${esc(S.code)}</span></div>
+  <h2>شنو اسمك؟</h2><input id="name" maxlength="16" placeholder="اسمك">
+  <button class="btn main" data-a="name">ادخل</button>`;
+}
+function vRules(){
+  return `<div class="top"><button class="btn small" data-a="home">رجوع</button></div><h2>الشخصيات</h2>
+  ${ORDER.map(k=>`<div class="box"><b style="font-size:20px">${ROLES[k].icon} ${ROLES[k].name}</b> <span class="tag ${ROLES[k].team}">${TEAM[ROLES[k].team]}</span>
+  <p>${ROLES[k].ability}</p><p class="sub">${ROLES[k].points}</p></div>`).join('')}`;
+}
+function roleCard(p){
+  const R=ROLES[p.role], r=S.room;
+  let extra='';
+  if(p.role==='mafia'){ const mates=r.players.filter(x=>x.role==='mafia'&&x.id!==p.id).map(x=>esc(x.name)); extra=mates.length?`ربعك: ${mates.join('، ')}`:'انت المافيا الوحيد'; }
+  if(p.role==='spy' && p.spyKnows) extra=`${esc(p.spyKnows.name)} هو ${ROLES[p.spyKnows.role].name}`;
+  if(p.role==='police') extra=`باقي ${p.shots} طلقات`;
+  return `<div class="card ${S.flipped?'flip':''}" data-a="flip"><div class="in">
+    <div class="face back"><b>مافيا</b><p class="sub" style="margin-top:10px">اضغط عشان تشوف دورك</p></div>
+    <div class="face front"><div class="ic">${R.icon}</div><div class="nm">${R.name}</div>
+      <span class="tag ${R.team}">${TEAM[R.team]}</span><p style="margin-top:10px">${R.ability}</p>
+      ${extra?`<p style="color:var(--brass);font-weight:700;margin-top:8px">${extra}</p>`:''}<small style="margin-top:8px">${R.points}</small></div>
+  </div></div>`;
+}
+function vPlayer(){
+  const r=S.room, m=me();
+  if(!m) return `<div class="box center">انشلت من الجلسة.<button class="btn" data-a="leave">رجوع</button></div>`;
+  let body='';
+  const alive=r.players.filter(p=>p.alive);
+  if(r.status==='lobby'){
+    body=`<div class="box center"><h2>أهلاً ${esc(m.name)} 👋</h2><p class="sub">انتظر المشرف يوزّع الأدوار</p></div>
+    <div class="box">${r.players.map(p=>`<div class="row">${esc(p.name)}</div>`).join('')}</div>`;
+  } else if(r.status==='reveal'){
+    body=roleCard(m)+`<p class="center sub">لا تخلي أحد يشوف جوالك</p>`;
+  } else {
+    if(!m.alive && r.status!=='over') body+=`<div class="box center"><h2>💀 انت ميت</h2><p class="sub">تقدر تتابع بس لا تتكلم</p></div>`;
+    if(r.status==='night'){
+      const type=actionType(m), mine=r.actions?.[S.pid];
+      if(!type){ body+= m.alive?`<div class="box center"><h2>😴 نام</h2><p class="sub">غمّض عيونك لين يصبح الصبح</p></div>`:''; }
+      else{
+        const label={kill:'منو تقتلون؟',protect:'منو تحمي؟',check:'منو تفحص؟',shoot:`تطلق على منو؟ (باقي ${m.shots})`}[type];
+        const targets=alive.filter(p=> type==='protect' ? true : p.id!==m.id && !(type==='kill'&&p.role==='mafia'));
+        let mates='';
+        if(type==='kill'){ mates=r.players.filter(p=>p.role==='mafia'&&p.alive&&p.id!==m.id).map(p=>{const t=r.actions?.[p.id]?.target; return `<div class="row">${esc(p.name)}<span class="tag">${t?esc(byId(t)?.name):'⏳'}</span></div>`}).join(''); }
+        body+=`<h2>${label}</h2>
+        ${mine&&type==='check'?`<div class="box center"><b style="font-size:22px">${esc(byId(mine.target)?.name)}: ${mine.result}</b></div>`:''}
+        ${mine&&type==='check'?'':`<div class="grid">${targets.map(p=>`<button class="pick ${mine?.target===p.id?'on':''}" data-a="act" data-v="${p.id}">${esc(p.name)}</button>`).join('')}
+        ${type==='shoot'?`<button class="pick ${mine?.target==='skip'?'on':''}" data-a="act" data-v="skip">ما أطلق الليلة</button>`:''}</div>`}
+        ${mates?`<h3>اختيارات المافيا</h3><div class="box">${mates}</div>`:''}
+        ${mine?`<p class="center sub" style="margin-top:12px">✔ وصل اختيارك${type==='check'?'':'، تقدر تغيّره قبل الصبح'}</p>`:''}`;
+      }
+    }
+    if(r.status==='suicide'){
+      if(r.pendingSuicide===S.pid){
+        body+=`<h2>💣 منو تاخذ معاك؟</h2><div class="grid">${alive.map(p=>`<button class="pick ${r.suicidePick===p.id?'on':''}" data-a="spick" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+        <p class="center sub" style="margin-top:12px">${r.suicidePick?'✔ وصل اختيارك للمشرف':''}</p>`;
+      } else body+=`<div class="box center"><h2>💣 الانتحاري يختار…</h2></div>`;
+    }
+    if(['morning','result','suicide'].includes(r.status) && r.news) body+=`<div class="box news">${esc(r.news)}</div>`;
+    if(r.status==='vote' && m.alive){
+      const mv=r.votes?.[S.pid];
+      body+=`<h2>صوّت على منو يطلع</h2>${m.role==='mayor'?'<p class="sub">صوتك يحسب صوتين 🎩</p>':''}
+      <div class="grid">${alive.filter(p=>p.id!==m.id).map(p=>`<button class="pick ${mv===p.id?'on':''}" data-a="vote" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+      ${mv?'<p class="center sub" style="margin-top:12px">✔ وصل صوتك، تقدر تغيّره</p>':''}`;
+    }
+    if(r.status==='over'){
+      body+=`<div class="box center"><div class="phase">${r.winner==='people'?'🏆 فاز الشعب':'🏆 فازت المافيا'}</div><p>نقاطك: <b>${m.points}</b></p></div>
+      <div class="box">${r.players.map(p=>`<div class="row"><span class="${p.alive?'':'dead'}">${esc(p.name)}</span>${tag(p)}</div>`).join('')}</div>`;
+    }
+    if(r.status!=='over') body+=`<button class="btn" data-a="toggleCard">${S.showCard?'خبّي دوري':'شوف دوري'}</button>${S.showCard?roleCard(m):''}`;
+  }
+  return `<div class="top"><span class="code">${esc(m.name)}</span><span class="tag">${PHASE[r.status]}${r.round?` • جولة ${r.round}`:''}</span></div>${body}`;
+}
+function vTV(){
+  const r=S.room, alive=r.players.filter(p=>p.alive);
+  let body='';
+  if(r.status==='lobby'){
+    body=`<div class="cols"><div class="center"><p class="sub" style="font-size:24px">امسح الكود أو ادخل الرقم</p>
+      <h1 style="font-size:110px">${esc(r.code)}</h1><div id="qr" class="qr"></div></div>
+      <div><h2>اللاعبين (${r.players.length})</h2><div class="grid">${r.players.map(p=>`<div class="pick">${esc(p.name)}</div>`).join('')}</div></div></div>`;
+  } else if(r.status==='over'){
+    body=`<div class="phase">${r.winner==='people'?'🏆 فاز الشعب':'🏆 فازت المافيا'}</div>
+    <div class="cols"><div class="box">${r.players.map(p=>`<div class="row" style="font-size:22px"><span class="${p.alive?'':'dead'}">${esc(p.name)}</span>${tag(p)}</div>`).join('')}</div>
+    <div class="box"><h2>الترتيب</h2>${board(r.players)}</div></div>`;
+  } else {
+    body=`<div class="phase">${PHASE[r.status]}</div>
+    ${r.status==='reveal'?'<p class="news">شوفوا أدواركم على جوالاتكم 🤫</p>':''}
+    ${r.status==='night'?'<p class="news">الكل يغمّض… أصحاب الأدوار يختارون من جوالاتهم</p>':''}
+    ${['morning','result','suicide'].includes(r.status)&&r.news?`<div class="box news">${esc(r.news)}</div>`:''}
+    ${r.status==='vote'?`<p class="news">صوّتوا من جوالاتكم (${Object.keys(r.votes||{}).length}/${alive.length})</p>`:''}
+    <div class="grid" style="margin-top:20px">${r.players.map(p=>`<div class="pick ${p.alive?'':'dead'}">${p.alive?'':'💀 '}${esc(p.name)}</div>`).join('')}</div>`;
+  }
+  return `<div class="tv"><div class="top"><span class="code">غرفة ${esc(r.code)}</span>${r.round?`<span class="tag">جولة ${r.round}</span>`:''}</div>${body}</div>`;
+}
+function vHost(){
+  const r=S.room, alive=r.players.filter(p=>p.alive);
+  let ctrl='';
+  const st=r.status;
+  if(st==='lobby') ctrl=`<p class="sub">ادخلوا من الرابط أو الكود. التوزيع يصير حسب عدد اللاعبين (${r.players.length}).</p>
+    <button class="btn main" data-a="h" data-v="deal" ${r.players.length<3?'disabled':''}>وزّع الأدوار</button>`;
+  if(st==='reveal') ctrl=`<p class="sub">خلّ كل واحد يشوف دوره، بعدين ابدأ الليل.</p><button class="btn main" data-a="h" data-v="night">ابدأ الليل 🌙</button>`;
+  if(st==='night'){
+    const actors=alive.filter(p=>actionType(p)!==null || (p.role==='police'&&p.shots>0));
+    ctrl=`<h3>منو اختار</h3>${actors.map(p=>{const a=r.actions?.[p.id]; return `<div class="row"><span>${esc(p.name)} ${tag(p)}</span><span>${a?'✔ '+(a.target==='skip'?'ما طلق':esc(byId(a.target)?.name)):'⏳'}</span></div>`}).join('')||'<p class="sub">ما في أحد عنده قدرة</p>'}
+    <button class="btn main" data-a="h" data-v="resolve">صبّح ونفّذ ☀️</button>`;
+  }
+  if(st==='suicide'){
+    const s=byId(r.pendingSuicide);
+    ctrl=`<p>💣 ${esc(s?.name)} يختار شخص ياخذه معاه. ${r.suicidePick?`اختار: <b>${esc(byId(r.suicidePick)?.name)}</b>`:'⏳ ينتظر'}</p>
+    ${r.suicidePick?`<button class="btn main" data-a="sx" data-v="${r.suicidePick}">نفّذ على ${esc(byId(r.suicidePick)?.name)}</button>`:''}
+    <h3>أو اختار بداله</h3><div class="grid">${alive.map(p=>`<button class="pick" data-a="sx" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+    <button class="btn" data-a="sx" data-v="">بدون</button>`;
+  }
+  if(st==='morning') ctrl=`<div class="box news">${esc(r.news)}</div><p class="sub" style="margin-top:8px">وقت النقاش. لما يخلصون:</p><button class="btn main" data-a="h" data-v="vote">ابدأ التصويت ⚖️</button>`;
+  if(st==='vote'){
+    const tally={}; Object.entries(r.votes||{}).forEach(([v,t])=>{const vp=byId(v); if(vp?.alive) tally[t]=(tally[t]||0)+(vp.role==='mayor'?2:1);});
+    ctrl=`<p class="sub">وصلت ${Object.keys(r.votes||{}).length} من ${alive.length} أصوات</p>
+    ${Object.entries(tally).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`<div class="row"><span>${esc(byId(t)?.name)}</span><b>${n}</b></div>`).join('')}
+    <button class="btn main" data-a="h" data-v="closeVote">سكّر التصويت</button>`;
+  }
+  if(st==='result') ctrl=`<div class="box news">${esc(r.news)}</div><button class="btn main" data-a="h" data-v="night">الليلة الجاية 🌙</button>`;
+  if(st==='over') ctrl=`<div class="phase">${r.winner==='people'?'🏆 فاز الشعب':'🏆 فازت المافيا'}</div>
+    <button class="btn main" data-a="h" data-v="deal">لعبة جديدة بنفس اللاعبين</button>
+    <button class="btn" data-a="h" data-v="lobby">رجوع للانتظار (لاعبين جدد)</button>`;
+  return `<div class="top"><span class="code">غرفة ${esc(r.code)}</span><span class="tag">${PHASE[st]}${r.round?` • جولة ${r.round}`:''}</span></div>
+  <div class="cols"><div>
+    <div class="box">${ctrl}</div>
+    ${st==='lobby'?`<div class="box center"><div id="qr" class="qr"></div><p class="sub" style="margin-top:8px;word-break:break-all">${esc(joinUrl(r.code))}</p></div>`:''}
+  </div><div>
+    <div class="box"><h3 style="margin-top:0">اللاعبين (${alive.length}/${r.players.length})</h3>
+      ${r.players.map(p=>`<div class="row"><span class="${p.alive?'':'dead'}">${esc(p.name)}</span>${p.role?tag(p):(st==='lobby'?`<button class="btn small" data-a="kick" data-v="${p.id}">شيل</button>`:'')}</div>`).join('')||'<p class="sub">ما دخل أحد للحين</p>'}</div>
+    <div class="box"><h3 style="margin-top:0">النقاط</h3>${board(r.players)}<button class="btn small" style="margin-top:10px" data-a="h" data-v="resetPoints">صفّر النقاط</button></div>
+    <div class="box"><h3 style="margin-top:0">السجل</h3><div class="log">${[...r.log].reverse().map(l=>`<div>${esc(l)}</div>`).join('')}</div></div>
+  </div></div>
+  <button class="btn" data-a="leave">اطلع من الجلسة</button>
+  <button class="btn small" style="margin-top:10px" data-a="h" data-v="end">امسح الجلسة</button>`;
+}
+
+function render(){
+  let html='';
+  $app.className = (S.mode==='tv'||S.mode==='host') && S.screen==='room' ? 'wide' : '';
+  if(S.screen==='home') html=vHome();
+  else if(S.screen==='join') html=vJoin();
+  else if(S.screen==='name') html=vName();
+  else if(S.screen==='rules') html=vRules();
+  else if(S.screen==='room' && !S.room) html='<p class="center sub" style="margin-top:30vh">جاري الاتصال…</p>';
+  else if(S.screen==='room') html = S.mode==='tv'?vTV() : S.mode==='host'?(isHost()?vHost():'<div class="box">ما عندك صلاحية المشرف على هالجهاز.<button class="btn" data-a="leave">رجوع</button></div>') : vPlayer();
+  $app.innerHTML=html;
+  const q=document.getElementById('qr');
+  if(q && window.QRCode) new QRCode(q,{text:joinUrl(S.code),width:S.mode==='tv'?260:180,height:S.mode==='tv'?260:180});
+}
+
+document.addEventListener('click', e=>{
+  const b=e.target.closest('[data-a]'); if(!b||b.disabled) return;
+  const v=b.dataset.v;
+  ({
+    create:createRoom,
+    goJoin:()=>{S.joinTV=false;S.screen='join';render()},
+    goTV:()=>{S.joinTV=true;S.screen='join';render()},
+    resume:()=>{const l=JSON.parse(ls.get('mafia_last')||'null'); if(l&&READY) enter(l.code,l.mode); else toast('لازم تحط بيانات Firebase أول');},
+    rules:()=>{S.screen='rules';render()},
+    home:()=>{S.screen='home';render()},
+    join:()=>joinFlow(document.getElementById('code').value.trim()),
+    name:()=>joinPlayer(document.getElementById('name').value.trim()),
+    leave, flip:()=>{S.flipped=!S.flipped; b.classList.toggle('flip',S.flipped)},
+    toggleCard:()=>{S.showCard=!S.showCard;S.flipped=true;render()},
+    act:()=>act(v),
+    vote:()=>upd({['votes.'+S.pid]:v}),
+    spick:()=>upd({suicidePick:v}),
+    sx:()=>H.suicide(v),
+    kick:()=>H.kick(v),
+    h:()=>H[v]()
+  }[b.dataset.a]||(()=>{}))();
+});
+document.addEventListener('keydown',e=>{ if(e.key!=='Enter')return; if(document.getElementById('code'))document.querySelector('[data-a=join]').click(); else if(document.getElementById('name'))document.querySelector('[data-a=name]').click(); });
+
+if(params.get('room')){ S.screen='join'; }
+render();
+</script>
+</body>
+</html>
