@@ -100,7 +100,7 @@ const FIREBASE_CONFIG = {
 /* ========================================= */
 
 const ROLES = {
-  mafia:{name:"المافيا",team:"mafia",icon:"🔪",ability:"تتفق مع زملائك كل ليلة على اختيار لاعب واحد لإقصائه."},
+  mafia:{name:"المافيا",team:"mafia",icon:"🔪",ability:"لازم كل أفراد المافيا الأحياء يختارون نفس اللاعب كل ليلة؛ ما ينفّذ الهجوم إلا بعد اتفاق الجميع."},
   spy:{name:"الجاسوس",team:"mafia",icon:"🕵️",ability:"تعرف سرًا منذ البداية هوية لاعب واحد من أصحاب الأدوار الخاصة بالشعب، وتشارك المافيا نقاط الفوز. لا تملك حركة ليلية."},
   suicidal:{name:"الانتحاري",team:"neutral",icon:"💣",ability:"عند موتك تختار لاعبًا حيًا يموت معك. تحصل على 3 نقاط إذا مت في الجولة الأولى، ونقطة في الثانية، ولا نقاط بعدها."},
   police:{name:"الشرطي",team:"neutral",icon:"👮",ability:"لديك طلقتان طوال اللعبة. كل ليلة يمكنك إطلاق طلقة أو الاحتفاظ بها. تحصل على نقطتين عن كل لاعب من المافيا تقتله."},
@@ -166,7 +166,7 @@ function enter(code,mode){
     if(prev&&prev.gameNo!==S.room.gameNo) S.revealed=false;
     relay(); render();
   });
-  on(col('players'),q=>{S.players=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.joinedAt-b.joinedAt);render();});
+  on(col('players'),q=>{S.players=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.joinedAt-b.joinedAt);relay();render();});
   on(col('votes'),q=>{S.votes={};q.docs.forEach(d=>S.votes[d.id]=d.data().target);render();});
   if(mode==='host'){
     on(col('secrets'),q=>{S.secrets={};q.docs.forEach(d=>S.secrets[d.id]=d.data());relay();render();});
@@ -228,8 +228,12 @@ async function relay(){
   const b=db.batch(); let n=0; const round=S.room.round;
   const act=id=>{const a=S.actions[id];return a&&a.round===round&&alivePlayers().some(p=>p.id===id)&&alivePlayers().some(p=>p.id===a.target)&&a.target!==id?a:null};
   const mafia=Object.keys(S.secrets).filter(id=>isMafiaRole(roleOf(id)));
-  const picks={}; mafia.forEach(id=>{const a=act(id);if(a)picks[id]=a.target;});
-  mafia.forEach(id=>{if(stable(S.secrets[id].mafiaPicks)!==stable(picks)){b.update(col('secrets').doc(id),{mafiaPicks:picks});n++;}});
+  const agreement=mafiaAgreement(S.players,S.secrets,S.actions,round),picks=agreement.picks;
+  mafia.forEach(id=>{
+    if(stable(S.secrets[id].mafiaPicks)!==stable(picks)||JSON.stringify(S.secrets[id].mafiaAgreement)!==JSON.stringify(agreement)){
+      b.update(col('secrets').doc(id),{mafiaPicks:picks,mafiaAgreement:agreement});n++;
+    }
+  });
   Object.keys(S.secrets).filter(id=>roleOf(id)==='journalist').forEach(id=>{
     const a=act(id), checks=S.secrets[id].checks||[];
     if(!a||checks.some(c=>c.round===round)) return;
@@ -254,15 +258,20 @@ function endPoints(role,winner,alive,n){
   if(isMafiaRole(role)) return winner==='mafia'?(n>8?3:2):0;
   return 0;
 }
+function mafiaAgreement(players,secrets,actions,round){
+  const alive=players.filter(p=>p.alive),living=new Set(alive.map(p=>p.id));
+  const voters=alive.filter(p=>secrets[p.id]?.role==='mafia');
+  const picks={};
+  voters.forEach(p=>{const a=actions[p.id];if(a&&a.round===round&&living.has(a.target)&&a.target!==p.id&&!isMafiaRole(secrets[a.target]?.role))picks[p.id]=a.target;});
+  const targets=[...new Set(Object.values(picks))];
+  const ready=voters.length===0||(Object.keys(picks).length===voters.length&&targets.length===1);
+  return {round,ready,target:ready?(targets[0]||null):null,total:voters.length,submitted:Object.keys(picks).length,picks,voters:voters.map(p=>p.id)};
+}
 function nightOutcome(players,secrets,actions,round,choose){
   const living=players.filter(p=>p.alive), ids=new Set(living.map(p=>p.id));
   const role=id=>secrets[id]?.role;
   const target=id=>{const a=actions[id];return a&&a.round===round&&ids.has(a.target)?a.target:null;};
-  const tally={};
-  living.filter(p=>role(p.id)==='mafia').forEach(p=>{
-    const t=target(p.id);if(t&&t!==p.id&&!isMafiaRole(role(t))) tally[t]=(tally[t]||0)+1;
-  });
-  const {tops}=tallyTop(tally), mafiaTarget=tops.length?choose(tops):null;
+  const agreement=mafiaAgreement(players,secrets,actions,round),mafiaTarget=agreement.target;
   const shields=living.filter(p=>role(p.id)==='doctor').map(p=>({target:target(p.id),used:false})).filter(x=>x.target);
   const attempts=mafiaTarget?[{target:mafiaTarget,source:'mafia'}]:[], spent=[];
   living.filter(p=>role(p.id)==='police'&&(secrets[p.id].bullets??2)>0).forEach(p=>{
@@ -277,7 +286,7 @@ function nightOutcome(players,secrets,actions,round,choose){
     deaths.push(hit.target);
     if(hit.source!=='mafia'&&role(hit.target)==='mafia')bonuses[hit.source]=(bonuses[hit.source]||0)+2;
   }
-  return {deaths,bonuses,spent,blocked,mafiaTarget,shield:{shields,round}};
+  return {deaths,bonuses,spent,blocked,mafiaTarget,agreement,shield:{shields,round}};
 }
 async function finishPhase(deaths,news,next,logs,options={}){
   const b=db.batch(), points={...options.points};
@@ -355,7 +364,7 @@ const H={
     const mafia=ids.filter(id=>isMafiaRole(role[id])), game=(S.room.gameNo||0)+1;
     const b=db.batch();
     ids.forEach(id=>{
-      b.set(col('secrets').doc(id),{role:role[id],game,checks:[],mafiaPicks:{},bullets:role[id]==='police'?2:0,
+      b.set(col('secrets').doc(id),{role:role[id],game,checks:[],mafiaPicks:{},mafiaAgreement:null,bullets:role[id]==='police'?2:0,
         spyIntel:role[id]==='spy'?(()=>{const candidates=ids.filter(x=>['doctor','journalist','mayor'].includes(role[x]));const x=candidates.length?candidates[rnd(candidates.length)]:null;return x?{name:nameOf(x),role:role[x]}:null;})():null,
         teammates:isMafiaRole(role[id])?mafia.filter(x=>x!==id).map(x=>({id:x,name:nameOf(x)})):[]});
       b.update(col('players').doc(id),{alive:true});
@@ -368,11 +377,13 @@ const H={
   },
   async night(){
     const b=db.batch(); clearSub(b,'actions',S.actions); clearSub(b,'votes',S.votes);
-    Object.keys(S.secrets).filter(id=>isMafiaRole(roleOf(id))).forEach(id=>b.update(col('secrets').doc(id),{mafiaPicks:{}}));
+    Object.keys(S.secrets).filter(id=>isMafiaRole(roleOf(id))).forEach(id=>b.update(col('secrets').doc(id),{mafiaPicks:{},mafiaAgreement:null}));
     b.set(col('secrets').doc('_shield'),{shields:[],round:S.room.round+1,game:S.room.gameNo});
     b.update(roomRef(S.code),{status:'night',round:S.room.round+1,news:''}); await b.commit();
   },
   async resolve(){
+    const agreement=mafiaAgreement(S.players,S.secrets,S.actions,S.room.round);
+    if(!agreement.ready)return toast('لازم كل أفراد المافيا الأحياء يختارون نفس اللاعب');
     await relay();
     const result=nightOutcome(S.players,S.secrets,S.actions,S.room.round,arr=>arr[rnd(arr.length)]);
     const patches={};result.spent.forEach(id=>patches[id]={bullets:Math.max(0,(S.secrets[id].bullets??2)-1)});
@@ -499,9 +510,12 @@ function vPlayer(){
         if(done) body+=`<div class="box center"><b style="font-size:22px">${esc(done.name)}: ${done.isMafia?'مافيا 🔴':'مو مافيا 🟢'}</b></div>`;
         else if(type==='check'&&mine) body+=`<div class="box center"><p class="sub">جاري الفحص…</p></div>`;
         else body+=`<div class="grid">${targets.map(p=>`<button class="pick ${mine===p.id?'on':''}" data-a="act" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div>`;
-        if(type==='kill'&&sec.teammates.length){
-          const pk=sec.mafiaPicks||{};
-          body+=`<h3>اختيارات زملائك</h3><div class="box">${sec.teammates.map(t=>`<div class="row">${esc(t.name)}<span class="tag">${pk[t.id]?esc(nameOf(pk[t.id])):'⏳'}</span></div>`).join('')}</div>`;
+        if(type==='kill'){
+          const agree=sec.mafiaAgreement?.round===r.round?sec.mafiaAgreement:null;
+          const pk=agree?.picks||{}, voters=agree?.voters||[];
+          const others=sec.teammates.filter(t=>voters.includes(t.id));
+          body+=`<div class="box ${agree?.ready?'':'warn'}"><b>${agree?.ready?'✔ اتفقت المافيا على '+esc(nameOf(agree.target)):'⏳ لازم كل أفراد المافيا الأحياء يختارون نفس الشخص'}</b><p>${agree?`${agree.submitted} من ${agree.total} اختاروا`:''}</p></div>`;
+          if(others.length)body+=`<h3>اختيارات زملائك الأحياء</h3><div class="box">${others.map(t=>`<div class="row">${esc(t.name)}<span class="tag">${pk[t.id]?esc(nameOf(pk[t.id])):'ما اختار'}</span></div>`).join('')}</div>`;
         }
         if(mine&&!done&&type!=='check') body+=`<p class="center sub" style="margin-top:12px">✔ وصل اختيارك، تقدر تغيّره قبل الصبح</p>`;
       }
@@ -551,10 +565,12 @@ function vHost(){
   }
   if(st==='day0') ctrl=`<p class="sub">كل لاعب يكشف شخصيته على جواله. بعدين ابدأ الليل.</p><button class="btn main" data-a="h" data-v="night">ابدأ الليل 🌙</button>`;
   if(st==='night'){
+    const agreement=mafiaAgreement(S.players,S.secrets,S.actions,r.round);
     const actors=alive.filter(p=>['mafia','doctor','journalist'].includes(roleOf(p.id))||(roleOf(p.id)==='police'&&(S.secrets[p.id]?.bullets??2)>0));
     ctrl=`<h3 style="margin-top:0">منو اختار</h3>${actors.map(p=>{const a=S.actions[p.id];const ok=a&&a.round===r.round;return `<div class="row"><span>${esc(p.name)} ${tagRole(roleOf(p.id))}</span><span>${ok?'✔ '+(a.target?esc(nameOf(a.target)):'احتفظ بالطلقة'):'⏳'}</span></div>`}).join('')}
     <p class="sub" style="margin-top:8px">خل هالشاشة مفتوحة بالليل، هي اللي توصل نتيجة الصحفي.</p>
-    <button class="btn main" data-a="h" data-v="resolve">صبّح ونفّذ ☀️</button>`;
+    <p class="${agreement.ready?'sub':'news'}">${agreement.ready?'✔ المافيا متفقة':'⏳ المافيا لازم تتفق على نفس اللاعب ('+agreement.submitted+'/'+agreement.total+')'}</p>
+    <button class="btn main" data-a="h" data-v="resolve" ${agreement.ready?'':'disabled'}>صبّح ونفّذ ☀️</button>`;
   }
   if(st==='revenge')ctrl=`<h2>اختيار الانتحاري</h2><p>بانتظار ${esc(nameOf(r.pendingRevenge?.[0]))} يختار من جواله.</p><button class="btn main" data-a="h" data-v="resolveRevenge">نفّذ الاختيار</button>`;
   if(st==='morning') ctrl=`<div class="box news">${esc(r.news)}</div><p class="sub" style="margin-top:8px">وقت النقاش. لما يخلصون:</p><button class="btn main" data-a="h" data-v="vote">ابدأ التصويت ⚖️</button>`;
