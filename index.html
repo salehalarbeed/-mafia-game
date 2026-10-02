@@ -172,6 +172,23 @@ input:focus{border-color:var(--brass);box-shadow:0 0 0 4px #c9a2271f;outline:non
 @keyframes dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
 .top .btn.small{padding:8px 12px}
 @media(prefers-reduced-motion:reduce){.btn,.pick{transition:none}.dots i{animation:none}}
+
+/* ---------- scene art as full-page background ---------- */
+body::before{background-image:linear-gradient(180deg,rgba(9,8,13,.05) 0%,rgba(9,8,13,.22) 50%,rgba(9,8,13,.55) 100%),var(--scene-image)!important;background-position:center 70%!important;filter:brightness(1.35) saturate(1.15)}
+.welcome-art,.stage-art{background:none!important;border:0!important;box-shadow:none!important;border-radius:0}
+.welcome-art{min-height:34vh;padding:20px 8px 6px}
+.welcome-art h1{font-size:84px;text-shadow:0 4px 30px #000,0 0 2px #000}
+.stage-art{min-height:auto;padding:6px 2px 0;margin-bottom:10px;align-items:center}
+.stage-caption{font-size:30px;text-shadow:0 2px 16px #000,0 0 2px #000}
+body[data-mode="tv"] .stage-caption{font-size:48px}
+.box{background:rgba(20,16,26,.68)!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-color:#ffffff14!important}
+.box.warn{background:rgba(58,42,16,.82)!important}
+.home-btn{background:rgba(24,19,30,.62);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-color:#ffffff1f}
+.home-btn.primary{background:linear-gradient(145deg,rgba(155,29,48,.92),rgba(94,21,34,.92))}
+.pick{background:rgba(38,30,44,.78)}
+.top{text-shadow:0 2px 8px #000}
+@media(max-width:450px){.welcome-art{min-height:30vh}.welcome-art h1{font-size:70px}.stage-caption{font-size:26px}}
+.stage-art + .top > .tag,.stage-art + .tv > .top > .tag{display:none}
 </style>
 </head>
 <body>
