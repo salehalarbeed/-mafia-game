@@ -504,6 +504,7 @@ function rolePanel(){
 }
 function playerTile(p,action=null,selected=false){
   const dead=p.alive===false,tag=action?'button':'div';
+  if(S.mode!=='tv')return `<${tag} class="pick ${dead?'dead':''} ${selected?'on':''}" ${action?`type="button" data-a="${action}" data-v="${p.id}" aria-pressed="${selected}"`:''}>${dead?'💀 ':''}${esc(p.name)}</${tag}>`;
   return `<${tag} class="player-tile ${dead?'fallen':''} ${dead&&newlyDead.has(p.id)?'falling':''} ${selected?'on':''}" ${action?`type="button" data-a="${action}" data-v="${p.id}" aria-pressed="${selected}"`:''} aria-label="${esc(p.name)} — ${dead?'ميت':'حي'}"><span class="player-portrait" aria-hidden="true"><span class="status-flip"><span class="status-front"><img src="${PLAYER_IMG.alive}" alt="" decoding="async"></span><span class="status-back"><img src="${PLAYER_IMG.dead}" alt="" decoding="async"></span></span></span><span class="player-name">${esc(p.name)}</span><span class="player-state">${dead?'ميت':'حي'}</span></${tag}>`;
 }
 function vPlayer(){
