@@ -229,6 +229,27 @@ body[data-mode="tv"] .tv .box.news{padding:12px 18px;font-size:clamp(24px,2vw,40
 .win-chip{background:linear-gradient(145deg,#f2d47a,#a87c22);color:#1b1408;font-weight:800;border-radius:999px;padding:8px 18px;font-size:18px;box-shadow:0 6px 18px #0006}
 body[data-mode="tv"] .win-chip{font-size:clamp(22px,2vw,40px);padding:.3em .9em}
 body[data-mode="tv"] .winners h3{font-size:clamp(24px,2vw,40px)}
+/* points towers */
+.towers{display:flex;align-items:stretch;gap:10px;height:270px;padding:10px 4px 0;overflow-x:auto}
+.tower{flex:1 0 46px;max-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:46px}
+.tw-pts{font:800 18px var(--display);color:#f6e8c7;margin-bottom:6px;font-variant-numeric:tabular-nums}
+.tw-bar{position:relative;width:72%;border-radius:10px 10px 3px 3px;transform-origin:bottom;animation:twGrow .9s cubic-bezier(.2,.8,.2,1) both;
+  background:repeating-linear-gradient(180deg,transparent 0 14px,#0000002e 14px 16px),linear-gradient(180deg,#8a7a8f,#3b3242);box-shadow:inset 0 0 0 1px #ffffff1a,0 8px 20px #0006}
+.tw-bar::before{content:"";position:absolute;inset:6px 22% 6px 22%;background:repeating-linear-gradient(180deg,#f2d47a55 0 4px,transparent 4px 14px);border-radius:2px}
+.tower.first .tw-bar{background:repeating-linear-gradient(180deg,transparent 0 14px,#00000026 14px 16px),linear-gradient(180deg,#f2d47a,#a87c22)}
+.tower.first .tw-bar::before{background:repeating-linear-gradient(180deg,#fff8 0 4px,transparent 4px 14px)}
+.tw-medal{font-style:normal;font-size:22px;line-height:1;margin-bottom:2px}
+.tw-name{margin-top:8px;font-weight:700;font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cream)}
+@keyframes twGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.over-cols{display:grid;grid-template-columns:1fr;gap:16px}
+body[data-mode="tv"] .over-cols{grid-template-columns:2fr 1fr;align-items:start}
+body[data-mode="tv"] .towers{height:clamp(200px,30vh,400px);gap:clamp(8px,1vw,18px)}
+body[data-mode="tv"] .tw-pts{font-size:clamp(20px,1.8vw,34px)}
+body[data-mode="tv"] .tw-name{font-size:clamp(14px,1.2vw,24px)}
+body[data-mode="tv"] .tw-medal{font-size:clamp(22px,1.8vw,38px)}
+body[data-mode="tv"] .tv .phase{margin:4px 0;font-size:clamp(34px,3vw,60px)}
+@media(prefers-reduced-motion:reduce){.tw-bar{animation:none}}
+.btn.abstain{margin-top:14px;border-style:dashed}
 </style>
 </head>
 <body>
@@ -570,7 +591,7 @@ const H={
     Object.entries(S.votes).forEach(([v,t])=>{if(isAlive(v)&&isAlive(t)&&v!==t)tally[t]=(tally[t]||0)+voteWeight(roleOf(v));});
     const {max,tops}=tallyTop(tally); let news, deaths=[];
     if(tops.length===1){deaths=[tops[0]];news=`⚖️ الشعب طلّع ${nameOf(tops[0])} (${max} أصوات)`;}
-    else news=tops.length?'⚖️ تعادل بالأصوات، ما طلع أحد':'⚖️ ما صوّت أحد';
+    else news=tops.length?'⚖️ تعادل بالأصوات، ما طلع أحد':(Object.values(S.votes).some(x=>x==='skip')?'⚖️ الكل امتنع، ما طلع أحد':'⚖️ ما صوّت أحد');
     await finishPhase(deaths,news,'result',[news]);
   },
   async lobby(){
@@ -731,6 +752,12 @@ const tagRole=r=>r?`<span class="tag ${ROLES[r].team}">${ROLES[r].icon} ${ROLES[
 const board=()=>[...S.players].sort((a,b)=>(b.points||0)-(a.points||0)).map((p,i)=>`<div class="row"><span>${i+1}. ${esc(p.name)}</span><b>${p.points||0}</b></div>`).join('');
 const winText=w=>w==='draw'?'⚖️ انتهت اللعبة بلا ناجين':w==='town'?'🏆 فاز الشعب':'🏆 فازت المافيا';
 const revealList=()=>(S.room.reveal||[]).map(x=>`<div class="row"><span class="${x.alive?'':'dead'}">${esc(x.name)}</span>${tagRole(x.role)}</div>`).join('');
+function towers(){
+  const ps=[...S.players].sort((a,b)=>(b.points||0)-(a.points||0));
+  const max=Math.max(1,...ps.map(p=>p.points||0)),medal=['🥇','🥈','🥉'];
+  return `<div class="towers" role="list">${ps.map((p,i)=>{const pts=p.points||0,h=Math.max(6,Math.round(Math.max(0,pts)/max*100));
+    return `<div class="tower ${i===0&&pts>0?'first':''}" role="listitem" aria-label="${esc(p.name)}: ${pts} نقطة">${i<3&&pts>0?`<i class="tw-medal" aria-hidden="true">${medal[i]}</i>`:''}<b class="tw-pts">${pts}</b><span class="tw-bar" style="height:${h}%;animation-delay:${i*90}ms"></span><span class="tw-name">${esc(p.name)}</span></div>`;}).join('')}</div>`;
+}
 function winnersBox(){
   const r=S.room,w=r.winner,list=r.reveal||[];
   const won=list.filter(x=>(w==='town'&&ROLES[x.role]?.team==='town')||(w==='mafia'&&isMafiaRole(x.role)));
@@ -825,9 +852,10 @@ function playerBody(){
     if(r.status==='vote'&&m.alive){
       const mv=S.votes[UID];
       body+=`<h2 style="margin-top:16px">صوّت على منو يطلع</h2><div class="grid">${alive.filter(p=>p.id!==UID).map(p=>playerTile(p,'vote',mv===p.id)).join('')}</div>
-      ${mv?'<p class="center sub" style="margin-top:12px">✔ وصل صوتك، تقدر تغيّره</p>':''}`;
+      <button class="btn noic abstain ${mv==='skip'?'gold':''}" data-a="vote" data-v="skip" aria-pressed="${mv==='skip'}">${ico('x',20)} امتناع عن التصويت</button>
+      ${mv?`<p class="center sub" style="margin-top:12px">✔ ${mv==='skip'?'امتنعت عن التصويت':'وصل صوتك'}، تقدر تغيّره</p>`:''}`;
     }
-    if(r.status==='over') body+=`<div class="box center"><div class="hero-ic gold">${ico('trophy',42)}</div><div class="phase">${winText(r.winner)}</div><p>نقاطك: <b>${m.points||0}</b></p></div>${winnersBox()}<div class="box">${revealList()}</div>`;
+    if(r.status==='over') body+=`<div class="box center"><div class="hero-ic gold">${ico('trophy',42)}</div><div class="phase">${winText(r.winner)}</div><p>نقاطك: <b>${m.points||0}</b></p></div>${winnersBox()}<div class="box"><h3 style="margin-top:0">النقاط</h3>${towers()}</div><div class="box">${revealList()}</div>`;
   }
   return body;
 }
@@ -841,7 +869,7 @@ function vTV(){
   if(r.status==='lobby') body=`<div class="cols"><div class="center"><p class="sub" style="font-size:24px">امسح الكود أو ادخل الرقم</p>
     <h1 style="font-size:110px">${esc(r.code)}</h1><div id="qr" class="qr"></div></div>
     <div><h2>اللاعبين (${S.players.length})</h2><div class="grid">${S.players.map(p=>playerTile(p)).join('')}</div></div></div>`;
-  else if(r.status==='over') body=`<div class="phase">${winText(r.winner)}</div>${winnersBox()}<div class="cols"><div class="box">${revealList()}</div><div class="box"><h2>الترتيب</h2>${board()}</div></div>`;
+  else if(r.status==='over') body=`<div class="phase">${winText(r.winner)}</div>${winnersBox()}<div class="over-cols"><div class="box"><h3 style="margin-top:0">النقاط</h3>${towers()}</div><div class="box">${revealList()}</div></div>`;
   else body=`
     ${r.status==='day0'?'<p class="news">كل واحد يكشف شخصيته على جواله بسرية 🤫</p>':''}
     ${r.status==='night'?'<p class="news">الكل يغمّض… أصحاب الأدوار يختارون من جوالاتهم</p>':''}
@@ -906,8 +934,8 @@ function vHost(){
   if(st==='revenge')ctrl=`<h2>اختيار الانتحاري</h2><p>بانتظار ${esc(nameOf(r.pendingRevenge?.[0]))} يختار من جواله.</p><button class="btn main" data-a="h" data-v="resolveRevenge">نفّذ الاختيار</button><button class="btn" data-a="h" data-v="revengeForce">تخطَّ</button>`;
   if(st==='morning') ctrl=`<div class="box news">${esc(r.news)}</div><p class="sub" style="margin-top:8px">وقت النقاش. لما يخلصون:</p><button class="btn main" data-a="h" data-v="vote">ابدأ التصويت ⚖️</button>`;
   if(st==='vote'){
-    const t={}; Object.entries(S.votes).forEach(([v,x])=>{if(alive.some(p=>p.id===v))t[x]=(t[x]||0)+voteWeight(roleOf(v));});
-    ctrl=`<p class="sub">وصلت ${Object.keys(S.votes).filter(v=>alive.some(p=>p.id===v)).length} من ${alive.length} أصوات</p>
+    const t={}; let skips=0; Object.entries(S.votes).forEach(([v,x])=>{if(!alive.some(p=>p.id===v))return;if(x==='skip'){skips++;return;}t[x]=(t[x]||0)+voteWeight(roleOf(v));});
+    ctrl=`<p class="sub">وصلت ${Object.keys(S.votes).filter(v=>alive.some(p=>p.id===v)).length} من ${alive.length} أصوات${skips?` • ${skips} امتنعوا`:''}</p>
     ${Object.entries(t).sort((a,b)=>b[1]-a[1]).map(([x,c])=>`<div class="row"><span>${esc(nameOf(x))}</span><b>${c}</b></div>`).join('')}
     <button class="btn main" data-a="h" data-v="closeVote">سكّر التصويت</button>`;
   }
