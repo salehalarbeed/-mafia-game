@@ -198,6 +198,11 @@ body[data-mode="tv"] .stage-caption{font-size:48px}
 .stage-art + .top > .tag,.stage-art + .tv > .top > .tag{display:none}
 .site-logo{width:150px;height:150px;border-radius:50%;object-fit:cover;margin-bottom:14px;border:3px solid #c9a227;box-shadow:0 0 0 6px #c9a2271a,0 16px 40px #000b}
 @media(max-width:450px){.site-logo{width:124px;height:124px}}
+body[data-mode="tv"] .stage-round.cd{font-family:var(--display);font-size:72px;line-height:1;padding:14px 34px;border-radius:999px;
+  border:3px solid #c9a227;background:rgba(16,10,19,.85);color:#f6e8c7;box-shadow:0 0 0 8px #c9a2271a,0 14px 40px #000a;font-variant-numeric:tabular-nums}
+body[data-mode="tv"] .stage-round.cd.urgent{border-color:#e04545;color:#ffd0d0;box-shadow:0 0 0 8px #e045452b,0 14px 40px #000a;animation:tvPulse 1s ease-in-out infinite}
+@keyframes tvPulse{50%{transform:scale(1.06)}}
+@media(prefers-reduced-motion:reduce){body[data-mode="tv"] .stage-round.cd.urgent{animation:none}}
 </style>
 </head>
 <body>
@@ -618,7 +623,7 @@ async function tick(){
   if(!ok)autoKey='';
 }
 function updateCountdowns(){
-  document.querySelectorAll('.cd[data-dl]').forEach(el=>{const d=Number(el.dataset.dl);el.textContent=d?'⏱️ '+fmt((d-Date.now())/1000):'';});
+  document.querySelectorAll('.cd[data-dl]').forEach(el=>{const d=Number(el.dataset.dl);const left=(d-Date.now())/1000;el.textContent=d?'⏱️ '+fmt(left):'';el.classList.toggle('urgent',!!d&&left<=10);});
 }
 let wakeLock=null;
 async function keepAwake(){
