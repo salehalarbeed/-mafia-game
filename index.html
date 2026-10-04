@@ -223,6 +223,12 @@ body[data-mode="tv"] .player-state{font-size:clamp(14px,1vw,20px)}
 body[data-mode="tv"] .tv .grid{grid-template-columns:repeat(auto-fill,minmax(clamp(110px,8.6vw,180px),1fr));gap:clamp(8px,1vw,18px)}
 body[data-mode="tv"] .tv .news{margin:6px 0}
 body[data-mode="tv"] .tv .box.news{padding:12px 18px;font-size:clamp(24px,2vw,40px)}
+.winners{text-align:center;border-color:#c9a22766!important}
+.winners h3{justify-content:center;border-bottom:0!important}
+.win-names{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.win-chip{background:linear-gradient(145deg,#f2d47a,#a87c22);color:#1b1408;font-weight:800;border-radius:999px;padding:8px 18px;font-size:18px;box-shadow:0 6px 18px #0006}
+body[data-mode="tv"] .win-chip{font-size:clamp(22px,2vw,40px);padding:.3em .9em}
+body[data-mode="tv"] .winners h3{font-size:clamp(24px,2vw,40px)}
 </style>
 </head>
 <body>
@@ -705,7 +711,7 @@ const BTN_IC={create:'home',goJoin:'plus',goTV:'tv',rules:'book',resume:'resume'
  reveal:'eye',hide:'eyeOff',skipShot:'shield',distReset:'refresh',joinSelf:'userPlus',leaveSelf:'userMinus',kick:'x',pointsSet:'check',
  'h:deal':'play','h:night':'moon','h:resolve':'sun','h:resolveForce':'skip','h:revengeForce':'skip','h:resolveRevenge':'check',
  'h:vote':'scale','h:closeVote':'lock','h:lobby':'users','h:resetPoints':'refresh','h:end':'trash','h:pause':'pause','h:resume':'play'};
-const H3_IC=[['اللاعب','users'],['النقاط','trophy'],['الترتيب','trophy'],['السجل','scroll'],['توزيع','sliders'],['الإدارة','clock'],['تحكم','sliders'],['تلعب','gamepad'],['اختيارات','mask'],['منو اختار','moon'],['اختيار الانتحاري','skull']];
+const H3_IC=[['اللاعب','users'],['الفائز','trophy'],['النقاط','trophy'],['الترتيب','trophy'],['السجل','scroll'],['توزيع','sliders'],['الإدارة','clock'],['تحكم','sliders'],['تلعب','gamepad'],['اختيارات','mask'],['منو اختار','moon'],['اختيار الانتحاري','skull']];
 const EMOJI_LEAD=/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]+\s*/u;
 function decorate(){
   document.querySelectorAll('#app .btn:not(.deco):not(.noic)').forEach(b=>{
@@ -725,6 +731,13 @@ const tagRole=r=>r?`<span class="tag ${ROLES[r].team}">${ROLES[r].icon} ${ROLES[
 const board=()=>[...S.players].sort((a,b)=>(b.points||0)-(a.points||0)).map((p,i)=>`<div class="row"><span>${i+1}. ${esc(p.name)}</span><b>${p.points||0}</b></div>`).join('');
 const winText=w=>w==='draw'?'⚖️ انتهت اللعبة بلا ناجين':w==='town'?'🏆 فاز الشعب':'🏆 فازت المافيا';
 const revealList=()=>(S.room.reveal||[]).map(x=>`<div class="row"><span class="${x.alive?'':'dead'}">${esc(x.name)}</span>${tagRole(x.role)}</div>`).join('');
+function winnersBox(){
+  const r=S.room,w=r.winner,list=r.reveal||[];
+  const won=list.filter(x=>(w==='town'&&ROLES[x.role]?.team==='town')||(w==='mafia'&&isMafiaRole(x.role)));
+  const surv=list.filter(x=>x.role==='survivor'&&x.alive);
+  if(!won.length&&!surv.length)return '';
+  return `<div class="box winners"><h3 style="margin-top:0">الفائزون</h3><div class="win-names">${won.map(x=>`<span class="win-chip">${esc(x.name)}</span>`).join('')}</div>${surv.length?`<p class="sub" style="margin-top:12px">🛡️ ونجا أيضًا: ${surv.map(x=>esc(x.name)).join('، ')}</p>`:''}</div>`;
+}
 const topBar=(l,r)=>`<div class="top"><span class="code">${l}</span><span class="tag">${r}</span></div>`;
 const phaseTag=()=>`${PHASE[S.room.status]}${S.room.round?` • جولة ${S.room.round}`:''}`;
 
@@ -814,9 +827,8 @@ function playerBody(){
       body+=`<h2 style="margin-top:16px">صوّت على منو يطلع</h2><div class="grid">${alive.filter(p=>p.id!==UID).map(p=>playerTile(p,'vote',mv===p.id)).join('')}</div>
       ${mv?'<p class="center sub" style="margin-top:12px">✔ وصل صوتك، تقدر تغيّره</p>':''}`;
     }
-    if(r.status==='over') body+=`<div class="box center"><div class="hero-ic gold">${ico('trophy',42)}</div><div class="phase">${winText(r.winner)}</div><p>نقاطك: <b>${m.points||0}</b></p></div><div class="box">${revealList()}</div>`;
+    if(r.status==='over') body+=`<div class="box center"><div class="hero-ic gold">${ico('trophy',42)}</div><div class="phase">${winText(r.winner)}</div><p>نقاطك: <b>${m.points||0}</b></p></div>${winnersBox()}<div class="box">${revealList()}</div>`;
   }
-  if(r.status!=='lobby')body+=`<div class="box"><h3 style="margin-top:0">اللاعبون</h3><div class="grid">${S.players.map(p=>playerTile(p)).join('')}</div></div>`;
   return body;
 }
 function vPlayer(){
@@ -829,7 +841,7 @@ function vTV(){
   if(r.status==='lobby') body=`<div class="cols"><div class="center"><p class="sub" style="font-size:24px">امسح الكود أو ادخل الرقم</p>
     <h1 style="font-size:110px">${esc(r.code)}</h1><div id="qr" class="qr"></div></div>
     <div><h2>اللاعبين (${S.players.length})</h2><div class="grid">${S.players.map(p=>playerTile(p)).join('')}</div></div></div>`;
-  else if(r.status==='over') body=`<div class="phase">${winText(r.winner)}</div><div class="cols"><div class="box">${revealList()}</div><div class="box"><h2>الترتيب</h2>${board()}</div></div>`;
+  else if(r.status==='over') body=`<div class="phase">${winText(r.winner)}</div>${winnersBox()}<div class="cols"><div class="box">${revealList()}</div><div class="box"><h2>الترتيب</h2>${board()}</div></div>`;
   else body=`
     ${r.status==='day0'?'<p class="news">كل واحد يكشف شخصيته على جواله بسرية 🤫</p>':''}
     ${r.status==='night'?'<p class="news">الكل يغمّض… أصحاب الأدوار يختارون من جوالاتهم</p>':''}
@@ -900,7 +912,7 @@ function vHost(){
     <button class="btn main" data-a="h" data-v="closeVote">سكّر التصويت</button>`;
   }
   if(st==='result') ctrl=`<div class="box news">${esc(r.news)}</div><button class="btn main" data-a="h" data-v="night">الليلة الجاية 🌙</button>`;
-  if(st==='over') ctrl=`<div class="phase">${winText(r.winner)}</div><button class="btn main" data-a="h" data-v="deal">لعبة جديدة بنفس اللاعبين</button>
+  if(st==='over') ctrl=`<div class="phase">${winText(r.winner)}</div>${winnersBox()}<button class="btn main" data-a="h" data-v="deal">لعبة جديدة بنفس اللاعبين</button>
     <button class="btn" data-a="h" data-v="lobby">رجوع للانتظار (لاعبين جدد أو تعديل التوزيع)</button>`;
   return `${topBar('غرفة '+esc(r.code),phaseTag())}<div class="cols"><div>
     ${st==='lobby'?'':`<div class="box">${autoBox()}</div>`}
