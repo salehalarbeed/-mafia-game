@@ -212,6 +212,14 @@ body[data-mode="tv"] .stage-round.cd.urgent{border-color:#e04545;color:#ffd0d0;b
 body[data-mode="host"] .stage-round.cd{font-size:60px;padding:12px 30px}
 @media(max-width:600px){.stage-art>span:last-child{width:100%;justify-content:center!important;order:3;margin-top:8px}.stage-round.cd{font-size:44px}}
 @media(prefers-reduced-motion:reduce){.stage-round.cd.urgent{animation:none}}
+/* TV: timer front and centre, scales with the screen */
+body[data-mode="tv"] .stage-art{justify-content:center;text-align:center}
+body[data-mode="tv"] .stage-art>span:last-child{width:100%;justify-content:center!important;order:3;margin-top:14px;gap:16px!important}
+body[data-mode="tv"] .stage-round.cd{font-size:clamp(80px,8vw,170px);padding:.12em .45em;border-width:4px}
+body[data-mode="tv"] .stage-round:not(.cd){font-size:clamp(20px,1.6vw,34px);padding:6px 18px}
+body[data-mode="tv"] .stage-caption{font-size:clamp(40px,3.4vw,72px)}
+body[data-mode="tv"] #app.wide{max-width:min(92vw,1700px)}
+body[data-mode="tv"] .player-state{font-size:clamp(14px,1vw,20px)}
 </style>
 </head>
 <body>
