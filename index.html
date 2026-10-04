@@ -237,7 +237,8 @@ const ROLES = {
 const KEYS = ["mafia","spy","suicidal","police","survivor","doctor","journalist","mayor","citizen"];
 const TEAM = {mafia:"المافيا",town:"الشعب",neutral:"المحايدون"};
 const TABLE = {
-  6:[1,0,0,0,0,1,1,0,3],7:[1,0,1,0,0,1,1,0,3],8:[2,0,1,0,1,1,1,0,2],
+  4:[1,0,0,0,0,1,0,0,2],5:[1,0,0,0,0,1,0,0,3],
+  6:[1,0,0,0,0,1,0,0,4],7:[1,0,1,0,0,1,1,0,3],8:[2,0,1,0,1,1,1,0,2],
   9:[2,0,1,1,1,1,1,1,1],10:[2,0,1,1,1,1,1,1,2],11:[2,1,1,1,1,1,1,1,2],
   12:[3,1,1,1,1,1,1,1,2],13:[3,1,1,1,1,1,1,1,3],14:[3,1,1,1,1,1,1,1,4],
   15:[4,1,1,1,1,1,1,1,4],16:[4,1,1,1,1,1,1,1,5],17:[4,1,1,1,1,1,1,1,6],
@@ -483,7 +484,7 @@ const H={
   },
   async deal(){
     const n=S.players.length, d=curDist(), sum=d.reduce((a,b)=>a+b,0);
-    if(!TABLE[n]) return toast('عدد اللاعبين المطلوب من 6 إلى 20');
+    if(!TABLE[n]) return toast('عدد اللاعبين المطلوب من 4 إلى 20');
     if(!validDist(n,d)) return toast('راجع التوزيع: المجموع يجب أن يساوي عدد اللاعبين، مع مافيا واحد على الأقل ولاعب خارج فريق المافيا');
     if(sum!==n) return toast(`مجموع الشخصيات (${sum}) لازم يساوي عدد اللاعبين (${n})`);
     if(d[0]<1) return toast('لازم يكون في مافيا واحد على الأقل');
@@ -603,7 +604,10 @@ async function tick(){
   const late=!!r.deadline&&now>=r.deadline;
   let step=null;
   if(r.status==='day0'&&late)step=['night'];
-  else if(r.status==='night'&&(late||nightReady()))step=['resolve',true];
+  else if(r.status==='night'){
+    if(nightReady()){if(!S.readyAt||S.readyKey!==key){S.readyAt=now;S.readyKey=key;}}else S.readyAt=0;
+    if(late||(S.readyAt&&now-S.readyAt>=5000))step=['resolve',true];
+  }
   else if(r.status==='revenge'){const id=r.pendingRevenge?.[0],a=S.actions[id];if((a&&a.round===r.round&&a.target)||late)step=['resolveRevenge',true];}
   else if(r.status==='morning'&&late)step=['vote'];
   else if(r.status==='vote'&&(late||allVoted()))step=['closeVote'];
@@ -848,7 +852,7 @@ function vHost(){
     ${KEYS.map((k,i)=>`<div class="row"><span>${ROLES[k].icon} ${ROLES[k].name}</span><span style="display:flex;gap:8px;align-items:center">
       <button class="btn small" data-a="adj" data-v="${k}:-1" ${d[i]===0?'disabled':''} aria-label="تقليل ${ROLES[k].name}">−</button><b style="min-width:24px;text-align:center">${d[i]}</b><button class="btn small" data-a="adj" data-v="${k}:1" ${d[i]>=20?'disabled':''} aria-label="زيادة ${ROLES[k].name}">+</button></span></div>`).join('')}
     <p style="margin-top:8px;color:${ok?'var(--ok)':'#ff8a8a'}">المجموع ${sum} من ${n} ${ok?'✔':'— لازم يساوي عدد اللاعبين'}</p>
-    <p class="sub">تقدر تعدّل عدد كل شخصية قبل بدء اللعبة. المجموع لازم يساوي عدد اللاعبين (6 إلى 20). المافيا لا تشمل الجاسوس.</p>
+    <p class="sub">تقدر تعدّل عدد كل شخصية قبل بدء اللعبة. المجموع لازم يساوي عدد اللاعبين (4 إلى 20). المافيا لا تشمل الجاسوس.</p>
     ${r.customDist?'<button class="btn" data-a="distReset">ارجع للجدول الافتراضي</button>':''}
     <button class="btn main" data-a="h" data-v="deal" ${ok?'':'disabled'}>ابدأ اللعبة ووزّع الشخصيات</button>`;
   }
