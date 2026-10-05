@@ -413,10 +413,10 @@ function enter(code,mode){
     relay(); render();
   });
   on(col('players'),q=>{const previous=new Map(S.players.map(p=>[p.id,p.alive]));if(S.room&&S.room.status==='lobby'&&previous.size&&q.size>previous.size)SFX.play('join');S.players=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.joinedAt-b.joinedAt);S.players.forEach(p=>{if(previous.get(p.id)===true&&p.alive===false)newlyDead.add(p.id);});relay();render();});
-  on(col('votes'),q=>{S.votes={};q.docs.forEach(d=>S.votes[d.id]=d.data().target);render();});
+  on(col('votes'),q=>{S.votes={};q.docs.forEach(d=>S.votes[d.id]=d.data().target);render();if(S.mode==='host')tick();});
   if(mode==='host'){
     on(col('secrets'),q=>{S.secrets={};q.docs.forEach(d=>S.secrets[d.id]=d.data());S.secret=S.secrets[UID]||null;relay();render();});
-    on(col('actions'),q=>{S.actions={};q.docs.forEach(d=>S.actions[d.id]=d.data());S.myAction=S.actions[UID]||null;relay();render();});
+    on(col('actions'),q=>{S.actions={};q.docs.forEach(d=>S.actions[d.id]=d.data());S.myAction=S.actions[UID]||null;relay();render();tick();});
   }
   if(mode==='player'){
     on(col('secrets').doc(UID),s=>{S.secret=s.exists?s.data():null;render();});
@@ -791,6 +791,9 @@ async function keepAwake(){
   try{wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null;});}catch(e){}
 }
 setInterval(tick,1000);
+/* background tabs throttle timers; a worker heartbeat keeps the host engine running */
+try{const hb=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),1000)'],{type:'text/javascript'})));
+  hb.onmessage=()=>{if(document.visibilityState!=='visible')tick();};}catch(e){}
 
 /* ---------- player actions ---------- */
 function nightType(){
