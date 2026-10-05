@@ -442,7 +442,7 @@ async function createRoom(){
   if(!ready()) return toast('انتظر ثواني لين يتصل');
   let code;
   for(let i=0;i<6;i++){code=String(1000+rnd(9000));const s=await roomRef(code).get();if(!s.exists)break;}
-  await roomRef(code).set({code,hostUid:UID,status:'lobby',round:0,gameNo:0,news:'',winner:null,reveal:null,recap:null,revote:false,candidates:null,customDist:null,created:Date.now()});
+  await roomRef(code).set({code,hostUid:UID,status:'lobby',round:0,gameNo:0,news:'',winner:null,reveal:null,customDist:null,created:Date.now()});
   enter(code,'host');
 }
 async function joinFlow(code){
