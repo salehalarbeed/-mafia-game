@@ -312,6 +312,14 @@ body::before{filter:none!important}
 .box{background:rgba(18,14,24,.84)!important}
 .home-btn{background:rgba(22,17,28,.84)}
 .pick{background:rgba(38,30,44,.9)}
+.end-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px;padding-top:12px;border-top:1px solid #ffffff12}
+.test-toggle{display:flex;align-items:center;gap:12px;width:100%;margin-top:14px;padding:12px 16px;border-radius:16px;border:1px dashed #c9a22766;background:rgba(20,16,26,.7);color:#e9dcc6;text-align:start;cursor:pointer;font-family:var(--body)}
+.test-toggle b{display:block;font-size:16px;color:#edcf81}.test-toggle small{display:block;font-size:13px;color:#a59cad;margin-top:2px}
+.tt-dot{flex:none;width:44px;height:26px;border-radius:999px;background:#3a3045;position:relative;transition:background .2s}
+.tt-dot::after{content:'';position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#cfc6d8;transition:transform .2s}
+.test-toggle.on{border-style:solid;border-color:#c9a227}.test-toggle.on .tt-dot{background:#b8892a}.test-toggle.on .tt-dot::after{transform:translateX(-18px);background:#fff}
+@media(prefers-reduced-motion:reduce){.tt-dot,.tt-dot::after{transition:none}}
+.news.allin{color:#9fe0b0}
 </style>
 </head>
 <body>
@@ -340,12 +348,12 @@ const fmt=s=>{s=Math.max(0,Math.round(s));const m=Math.floor(s/60),x=s%60;return
 const ROLES = {
   mafia:{name:"المافيا",team:"mafia",icon:"🔪",ability:"لازم كل أفراد المافيا الأحياء يختارون نفس اللاعب كل ليلة؛ ما ينفّذ الهجوم إلا بعد اتفاق الجميع."},
   spy:{name:"الجاسوس",team:"mafia",icon:"🕵️",ability:"تعرف سرًا منذ البداية هوية لاعب واحد من أصحاب الأدوار الخاصة بالشعب، وتشارك المافيا نقاط الفوز. لا تملك حركة ليلية."},
-  suicidal:{name:"الانتحاري",team:"neutral",icon:"💣",ability:"عند موتك تختار لاعبًا حيًا يموت معك. تحصل على 3 نقاط إذا مت في الجولة الأولى، ونقطة في الثانية، ولا نقاط بعدها."},
-  police:{name:"الشرطي",team:"neutral",icon:"👮",ability:"لديك طلقتان طوال اللعبة. كل ليلة يمكنك إطلاق طلقة أو الاحتفاظ بها. تحصل على نقطتين عن كل لاعب من المافيا تقتله."},
+  suicidal:{name:"الانتحاري",team:"neutral",icon:"💣",ability:"عند موتك تختار لاعبًا حيًا يموت معك. تحصل على 3 نقاط إذا مت في الجولة الأولى، ونقطتين في الثانية، ونقطة في الثالثة، ولا نقاط بعدها."},
+  police:{name:"الشرطي",team:"neutral",icon:"👮",ability:"لديك طلقتان طوال اللعبة (طلقة واحدة فقط إذا كان اللاعبون 6 أو أقل). كل ليلة يمكنك إطلاق طلقة أو الاحتفاظ بها. تحصل على نقطتين عن كل لاعب من المافيا تقتله."},
   survivor:{name:"الناجي",team:"neutral",icon:"🛡️",ability:"هدفك البقاء حيًا حتى نهاية اللعبة. تحصل على 3 نقاط إذا بقيت حيًا، بغض النظر عن الفريق الفائز."},
   doctor:{name:"الدكتور",team:"town",icon:"💉",ability:"تحمي لاعبًا أو نفسك كل ليلة. الحماية تمنع أول محاولة إقصاء في الجولة من أي مصدر: المافيا أو الشرطي أو الانتحاري أو التصويت. تُستهلك مرة واحدة وتنتهي عند بدء الليل التالي."},
   journalist:{name:"الصحفي",team:"town",icon:"🔎",ability:"تحقق كل ليلة من لاعب، وتعرف سرًا هل ينتمي لفريق المافيا أم لا."},
-  mayor:{name:"العمدة",team:"town",icon:"🎖️",ability:"صوتك يُحسب بصوتين. تحصل على نقطتين إذا فاز الشعب."},
+  mayor:{name:"العمدة",team:"town",icon:"🎖️",ability:"صوتك يُحسب بصوتين. تحصل على نقطتين إذا فاز الشعب (نقطة واحدة إذا كان اللاعبون 6 أو أقل)."},
   citizen:{name:"المواطن",team:"town",icon:"👤",ability:"ما عندك حركة ليلية. تشارك نهارًا في النقاش والتصويت."}
 };
 const KEYS = ["mafia","spy","suicidal","police","survivor","doctor","journalist","mayor","citizen"];
@@ -423,6 +431,13 @@ function enter(code,mode){
     on(col('actions').doc(UID),s=>{S.myAction=s.exists?s.data():null;render();});
   }
   S.screen='room'; render();
+}
+async function leaveRoom(){
+  if(S.mode==='host'&&isHost()&&S.room&&S.room.status!=='lobby'){
+    const next=S.players.filter(p=>p.id!==UID).sort((a,b)=>(a.alive===b.alive?0:a.alive?-1:1)||(a.joinedAt||0)-(b.joinedAt||0))[0];
+    if(next){try{await roomRef(S.code).update({hostUid:next.id});toast(`انتقل الإشراف لـ ${next.name}`);}catch(e){}}
+  }
+  leave();
 }
 function leave(){stopAll();Object.assign(S,{room:null,code:null,mode:null,screen:'home'});ls.del('mafia_last');history.replaceState(null,'',location.pathname);render();}
 
@@ -502,9 +517,10 @@ function teamWinner(ids,role){
   return ids.length===0?'draw':m===0?'town':m>=ids.length-m?'mafia':null;
 }
 function endPoints(role,winner,alive,n){
+  const small=n<=6;
   if(role==='survivor') return alive?3:0;
-  if(ROLES[role]?.team==='town') return winner==='town'?2:0;
-  if(isMafiaRole(role)) return winner==='mafia'?(n>8?3:2):0;
+  if(ROLES[role]?.team==='town') return winner==='town'?(small?1:2):0;
+  if(isMafiaRole(role)) return winner==='mafia'?(small?2:3):0;
   return 0;
 }
 function mafiaAgreement(players,secrets,actions,round){
@@ -533,7 +549,7 @@ function nightOutcome(players,secrets,actions,round,choose){
     const guard=shields.find(x=>x.target===hit.target&&!x.used);
     if(guard){guard.used=true;blocked.push(hit.target);continue;}
     deaths.push(hit.target);
-    if(hit.source!=='mafia'&&role(hit.target)==='mafia')bonuses[hit.source]=(bonuses[hit.source]||0)+2;
+    if(hit.source!=='mafia'&&isMafiaRole(role(hit.target)))bonuses[hit.source]=(bonuses[hit.source]||0)+2;
   }
   return {deaths,bonuses,spent,blocked,mafiaTarget,agreement,shield:{shields,round}};
 }
@@ -556,7 +572,7 @@ async function finishPhase(deaths,news,next,logs,options={}){
   if(options.shield)b.set(col('secrets').doc('_shield'),{...options.shield,game:S.room.gameNo});
   deaths.forEach(id=>{
     b.update(col('players').doc(id),{alive:false});
-    if(roleOf(id)==='suicidal') points[id]=(points[id]||0)+(S.room.round<=1?3:S.room.round===2?1:0);
+    if(roleOf(id)==='suicidal') points[id]=(points[id]||0)+(S.room.round<=1?3:S.room.round===2?2:S.room.round===3?1:0);
   });
   Object.entries(options.secretUpdates||{}).forEach(([id,patch])=>b.update(col('secrets').doc(id),patch));
   const aliveIds=S.players.filter(p=>p.alive&&!deaths.includes(p.id)).map(p=>p.id);
@@ -571,8 +587,7 @@ async function finishPhase(deaths,news,next,logs,options={}){
     {const all=[...(S.secrets._log?.lines||[]),...logs];let k=-1;all.forEach((l,i)=>{if(String(l).startsWith('🎴'))k=i;});upd.recap=all.slice(k+1).filter(l=>!String(l).startsWith('🏆'));}
     S.players.forEach(p=>{points[p.id]=(points[p.id]||0)+endPoints(roleOf(p.id),w,aliveIds.includes(p.id),S.players.length);});
     logs.push(winText(w));
-    {const pts={};S.players.forEach(p=>{pts[p.id]=(points[p.id]||0)+(options.points?.[p.id]?0:0);});
-     const scored=S.players.map(p=>({name:p.name,role:roleOf(p.id),pts:(p.points||0)+(points[p.id]||0)})).sort((a,b)=>b.pts-a.pts);
+    {const scored=S.players.map(p=>({name:p.name,role:roleOf(p.id),pts:(p.points||0)+(points[p.id]||0)})).sort((a,b)=>b.pts-a.pts);
      const entry={game:S.room.gameNo,winner:w,players:scored,at:Date.now()};
      upd.history=[...(S.room.history||[]).filter(h=>h.game!==S.room.gameNo),entry].slice(-12);}
   }
@@ -619,7 +634,7 @@ const H={
     const mafia=ids.filter(id=>isMafiaRole(role[id])), game=(S.room.gameNo||0)+1;
     const b=db.batch();
     ids.forEach(id=>{
-      b.set(col('secrets').doc(id),{role:role[id],game,checks:[],mafiaPicks:{},mafiaAgreement:null,bullets:role[id]==='police'?2:0,
+      b.set(col('secrets').doc(id),{role:role[id],game,checks:[],mafiaPicks:{},mafiaAgreement:null,bullets:role[id]==='police'?(n<=6?1:2):0,
         spyIntel:role[id]==='spy'?(()=>{const candidates=ids.filter(x=>['doctor','journalist','mayor'].includes(role[x]));const x=candidates.length?candidates[rnd(candidates.length)]:null;return x?{name:nameOf(x),role:role[x]}:null;})():null,
         teammates:isMafiaRole(role[id])?mafia.filter(x=>x!==id).map(x=>({id:x,name:nameOf(x)})):[]});
       b.update(col('players').doc(id),{alive:true,points:0});
@@ -634,7 +649,7 @@ const H={
     const b=db.batch(); clearSub(b,'actions',S.actions); clearSub(b,'votes',S.votes);
     Object.keys(S.secrets).filter(id=>isMafiaRole(roleOf(id))).forEach(id=>b.update(col('secrets').doc(id),{mafiaPicks:{},mafiaAgreement:null}));
     b.set(col('secrets').doc('_shield'),{shields:[],round:S.room.round+1,game:S.room.gameNo});
-    b.update(roomRef(S.code),{status:'night',round:S.room.round+1,news:'',deadline:dlFor('night')}); await b.commit();
+    b.update(roomRef(S.code),{status:'night',round:S.room.round+1,news:'',allIn:false,deadline:dlFor('night')}); await b.commit();
   },
   async resolve(force){
     const agreement=mafiaAgreement(S.players,S.secrets,S.actions,S.room.round);
@@ -732,11 +747,15 @@ const H={
     await roomRef(S.code).update({hostUid:id});
   },
   resetPoints(){if(!confirm('تصفّر النقاط؟'))return;const b=db.batch();S.players.forEach(p=>b.update(col('players').doc(p.id),{points:0}));b.commit();},
-  end(){if(confirm('تنهي الجلسة وتمسحها؟'))roomRef(S.code).delete();}
+  async stopGame(){
+    if(!confirm('توقف اللعبة الحالية وترجعون لشاشة الانتظار؟ نتيجة هاللعبة ما بتنحسب'))return;
+    await H.lobby();toast('انتهت اللعبة، رجعتوا للانتظار');
+  },
+  async end(){if(confirm('تنهي الجلسة كاملة؟ الكل بيطلع والغرفة تنمسح'))await roomRef(S.code).delete();}
 };
 
 let hostBusy=false;
-const hostPhases={verdict:['defense'],kick:['lobby','day0','night','morning','vote','result'],resolveForce:['night'],revengeForce:['revenge'],deal:['lobby','over'],night:['day0','result'],resolve:['night'],vote:['morning'],closeVote:['vote'],resolveRevenge:['revenge'],lobby:['over']};
+const hostPhases={stopGame:['day0','night','revenge','morning','defense','vote','result'],verdict:['defense'],kick:['lobby','day0','night','morning','vote','result'],resolveForce:['night'],revengeForce:['revenge'],deal:['lobby','over'],night:['day0','result'],resolve:['night'],vote:['morning'],closeVote:['vote'],resolveRevenge:['revenge'],lobby:['over']};
 async function hostAction(name,arg){
   if(hostBusy||!isHost()||!H[name])return false;
   if(hostPhases[name]&&!hostPhases[name].includes(S.room.status))return false;
@@ -757,8 +776,26 @@ function nightReady(){
   });
 }
 function allVoted(){const alive=alivePlayers().filter(p=>!(S.room.stage==='verdict'&&p.id===S.room.accused));return alive.length>0&&alive.every(p=>S.votes[p.id]);}
+const msOf=t=>t?(typeof t.toMillis==='function'?t.toMillis():Number(t)):0;
+function hostBeat(){
+  if(S.mode!=='host'||!S.room||!isHost())return;
+  const now=Date.now();if(S.lastBeat&&now-S.lastBeat<10000)return;S.lastBeat=now;
+  roomRef(S.code).update({hostBeat:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
+}
+function failover(){
+  const r=S.room;if(!r||!S.code||S.mode!=='player'||!me())return;
+  const hb=msOf(r.hostBeat);if(!hb)return;
+  const stale=Date.now()-hb;if(stale<35000)return;
+  const cands=S.players.filter(p=>p.id!==r.hostUid).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
+  if(!cands.length)return;
+  const idx=Math.floor((stale-35000)/20000)%cands.length;
+  if(cands[idx].id!==UID)return;
+  if(S.claiming&&Date.now()-S.claiming<15000)return;S.claiming=Date.now();
+  roomRef(S.code).update({hostUid:UID,hostBeat:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
+}
 async function tick(){
   updateCountdowns();
+  hostBeat();failover();
   if(S.mode!=='host'||!S.room||!isHost()||!autoOn()||hostBusy)return;
   keepAwake();
   const r=S.room,now=Date.now(),key=[r.gameNo,r.round,r.status,(r.pendingRevenge||[])[0]||'',r.revote?'rv':'',r.stage||''].join(':');
@@ -768,8 +805,8 @@ async function tick(){
   let step=null;
   if(r.status==='day0'&&late)step=['night'];
   else if(r.status==='night'){
-    if(nightReady()){if(!S.readyAt||S.readyKey!==key){S.readyAt=now;S.readyKey=key;}}else S.readyAt=0;
-    if(late||(S.readyAt&&now-S.readyAt>=5000))step=['resolve',true];
+    if(nightReady()){if(!S.readyAt||S.readyKey!==key){S.readyAt=now;S.readyKey=key;if(!r.allIn)roomRef(S.code).update({allIn:true}).catch(()=>{});}}else S.readyAt=0;
+    if(late||(S.readyAt&&now-S.readyAt>=3000))step=['resolve',true];
   }
   else if(r.status==='revenge'){const id=r.pendingRevenge?.[0],a=S.actions[id];if((a&&a.round===r.round&&a.target)||late)step=['resolveRevenge',true];}
   else if(r.status==='morning'&&late)step=['vote'];
@@ -856,7 +893,7 @@ const COLL=[['النقاط',1],['السجل',1],['نتائج',1],['الإدار�
 function tidy(){
   document.querySelectorAll('#app .btn').forEach(b=>{
     const k=b.dataset.a==='h'?'h:'+b.dataset.v:b.dataset.a;
-    if(['kick','leaveSelf','h:end','h:resetPoints'].includes(k))b.classList.add('danger');
+    if(['kick','leaveSelf','h:end','h:stopGame','h:resetPoints'].includes(k))b.classList.add('danger');
     if(b.querySelector('svg'))b.childNodes.forEach(n=>{if(n.nodeType===3)n.textContent=n.textContent.replace(EMO,'').replace(/\s+/g,' ');});
   });
   if(S.mode==='host')document.querySelectorAll('#app .box > h3:first-child').forEach(h=>{
@@ -980,7 +1017,8 @@ const IG_URL='https://instagram.com/lastescapeq8';
 const igLink=(cls='')=>`<a class="ig-link ${cls}" href="${IG_URL}" target="_blank" rel="noopener" aria-label="حساب Last Escape على إنستقرام"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor"/></svg><span dir="ltr">@lastescapeq8</span></a>`;
 function vHome(){
   const last=JSON.parse(ls.get('mafia_last')||'null');
-  return `<div class="home-foot">${igLink()}<a class="privacy-link" href="privacy.html">سياسة الخصوصية</a></div><div class="welcome-art"><img class="site-logo" src="data:image/webp;base64,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" alt="Last Escape" width="150" height="150"><span class="scene-eyebrow">كل شخص يخفي سرًا</span><h1>مافيا</h1><p class="sub">المشرف على الآيباد، التلفزيون للعرض، وكل لاعب من جواله.</p></div>
+  return `<button class="test-toggle ${TEST_MODE?'on':''}" data-a="testMode" aria-pressed="${TEST_MODE}"><span class="tt-dot"></span><span><b>🧪 وضع التجربة</b><small>${TEST_MODE?'شغّال: كل تبويب أو نافذة لاعب مستقل':'جرّب اللعبة بأكثر من لاعب من جهاز واحد'}</small></span></button>
+  <div class="home-foot">${igLink()}<a class="privacy-link" href="privacy.html">سياسة الخصوصية</a></div><div class="welcome-art"><img class="site-logo" src="data:image/webp;base64,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" alt="Last Escape" width="150" height="150"><span class="scene-eyebrow">كل شخص يخفي سرًا</span><h1>مافيا</h1><p class="sub">المشرف على الآيباد، التلفزيون للعرض، وكل لاعب من جواله.</p></div>
   ${AUTH_ERR?`<div class="box warn">⚠️ ما قدرت أسجّل دخول: ${esc(AUTH_ERR)}<br>فعّل Anonymous من Firebase ← Authentication ← Sign-in method.</div>`:''}
   ${!AUTH_ERR&&!ready()?'<p class="sub" style="margin-top:12px">جاري الاتصال…</p>':''}
   <div class="home-grid">
@@ -1075,7 +1113,7 @@ function playerBody(){
       <button class="btn noic abstain ${mv==='skip'?'gold':''}" data-a="vote" data-v="skip" aria-pressed="${mv==='skip'}">${ico('x',20)} امتناع عن التصويت</button>
       ${mv?`<p class="center sub" style="margin-top:12px">✔ ${mv==='skip'?'امتنعت عن التصويت':'وصل صوتك'}، تقدر تغيّره</p>`:''}`;
     }
-    if(r.status==='over') body+=`<div class="box center"><div class="hero-ic gold">${ico('trophy',42)}</div><div class="phase">${winText(r.winner)}</div><p>نقاطك في هاللعبة: <b>${m.points||0}</b></p></div>${winnersBox()}${recapBox()}${historyBox()}<div class="box"><h3 style="margin-top:0">النقاط</h3>${towers()}</div><div class="box">${revealList()}</div><div class="center" style="margin-top:14px">${igLink()}</div>`;
+    if(r.status==='over') body+=`<div class="box center"><div class="hero-ic gold">${ico('trophy',42)}</div><div class="phase">${winText(r.winner)}</div><p>نقاطك في هاللعبة: <b>${m.points||0}</b></p></div><div class="box"><h3 style="margin-top:0">النقاط</h3>${towers()}</div>${winnersBox()}<div class="box">${revealList()}</div>${recapBox()}${historyBox()}<div class="center" style="margin-top:14px">${igLink()}</div>`;
   }
   return body;
 }
@@ -1089,12 +1127,12 @@ function vTV(){
   if(r.status==='lobby') body=`<div class="cols"><div class="center"><p class="sub" style="font-size:24px">امسح الكود أو ادخل الرقم</p>
     <h1 style="font-size:110px">${esc(r.code)}</h1><div id="qr" class="qr"></div></div>
     <div><h2>اللاعبين (${S.players.length})</h2><div class="grid">${S.players.map(p=>playerTile(p)).join('')}</div></div></div>`;
-  else if(r.status==='over') body=`<div class="phase">${winText(r.winner)}</div>${winnersBox()}${recapBox()}${historyBox()}<div class="over-cols"><div class="box"><h3 style="margin-top:0">النقاط</h3>${towers()}</div><div class="box">${revealList()}</div></div>`;
+  else if(r.status==='over') body=`<div class="phase">${winText(r.winner)}</div><div class="box"><h3 style="margin-top:0">النقاط</h3>${towers()}</div>${winnersBox()}<div class="box">${revealList()}</div>${recapBox()}${historyBox()}`;
   else body=`
     ${r.status==='day0'?'<p class="news">كل واحد يكشف شخصيته على جواله بسرية 🤫</p>':''}
-    ${r.status==='night'?'<p class="news">الكل يغمّض… أصحاب الأدوار يختارون من جوالاتهم</p>':''}
+    ${r.status==='night'?(r.allIn?'<p class="news allin">✔ الكل اختار… الصبح بعد ثواني</p>':'<p class="news">الكل يغمّض… أصحاب الأدوار يختارون من جوالاتهم</p>'):''}
     ${['morning','result'].includes(r.status)&&r.news?`<div class="box news">${esc(r.news)}</div>`:''}
-    ${r.status==='defense'?`<div class="box news">${esc(r.news)}</div><div class="defense-tile">${S.players.filter(p=>p.id===r.accused).map(p=>playerTile(p)).join('')}</div>`:''}${r.status==='vote'&&r.stage==='verdict'?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'&&r.revote?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'?`<p class="news">صوّتوا من جوالاتكم (${Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length}/${alive.length})</p>`:''}
+    ${r.status==='defense'?`<div class="box news">${esc(r.news)}</div><div class="defense-tile">${S.players.filter(p=>p.id===r.accused).map(p=>playerTile(p)).join('')}</div>`:''}${r.status==='vote'&&r.stage==='verdict'?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'&&r.revote?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'?(((Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length)>=alive.length-(r.stage==='verdict'?1:0))?`<p class="news allin">✔ الكل صوّت… النتيجة الحين</p>`:`<p class="news">صوّتوا من جوالاتكم (${Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length}/${alive.length-(r.stage==='verdict'?1:0)})</p>`):''}
     <div class="grid" style="margin-top:20px">${S.players.map(p=>playerTile(p)).join('')}</div>`;
   return `${(S.room.status==='lobby'||S.room.status==='over')?igLink('tv-ig'):''}<div class="tv">${topBar('غرفة '+esc(r.code),r.round?'جولة '+r.round:PHASE[r.status])}${body}</div>`;
 }
@@ -1115,6 +1153,10 @@ function hostJoinBox(){
   return `<div class="box"><h3 style="margin-top:0">🎮 تبي تلعب معاهم؟</h3>${mine
     ?`<p>أنت داخل كلاعب باسم <b>${esc(mine.name)}</b>. بعد البداية بتشوف شخصيتك بس، وأدوار الباقين تنخفي عنك.</p><button class="btn" data-a="leaveSelf">انسحب من اللعب</button>`
     :`<input id="hostName" maxlength="16" placeholder="اسمك"><button class="btn gold" data-a="joinSelf">انضم كلاعب</button>`}</div>`;
+}
+function endBox(){
+  const st=S.room.status;
+  return `<div class="end-row">${st!=='lobby'&&st!=='over'?`<button class="btn small" data-a="h" data-v="stopGame">⏹️ أوقف اللعبة</button>`:''}<button class="btn small" data-a="h" data-v="end">إنهاء الجلسة</button></div>`;
 }
 function manageBox(){
   const r=S.room,st=r.status,others=S.players.filter(p=>p.id!==UID);
@@ -1150,7 +1192,7 @@ function playingHostCtrl(){
   if(st==='vote')c=`<p class="sub">وصلت ${Object.keys(S.votes).filter(v=>alive.some(p=>p.id===v)).length} من ${alive.length} أصوات</p><button class="btn main" data-a="h" data-v="closeVote">سكّر التصويت الحين</button>`;
   if(st==='result')c=`<button class="btn main" data-a="h" data-v="night">الليلة الجاية الحين 🌙</button>`;
   if(st==='over')c=`<button class="btn main" data-a="h" data-v="deal">لعبة جديدة بنفس اللاعبين</button><button class="btn" data-a="h" data-v="lobby">رجوع للانتظار</button>`;
-  return `<div class="box"><h3 style="margin-top:0">🎛️ تحكم المشرف</h3>${autoBox()}${c}</div>${manageBox()}`;
+  return `<div class="box"><h3 style="margin-top:0">🎛️ تحكم المشرف</h3>${autoBox()}${c}${endBox()}</div>${manageBox()}`;
 }
 function vHost(){
   const r=S.room, st=r.status, alive=alivePlayers(), n=S.players.length; let ctrl='';
@@ -1188,11 +1230,11 @@ function vHost(){
     <button class="btn main" data-a="h" data-v="closeVote">سكّر التصويت</button>`;
   }
   if(st==='result') ctrl=`<div class="box news">${esc(r.news)}</div><button class="btn main" data-a="h" data-v="night">الليلة الجاية 🌙</button>`;
-  if(st==='over') ctrl=`<div class="phase">${winText(r.winner)}</div>${winnersBox()}${recapBox()}${historyBox()}<button class="btn main" data-a="h" data-v="deal">لعبة جديدة بنفس اللاعبين</button>
-    <button class="btn" data-a="h" data-v="lobby">رجوع للانتظار (لاعبين جدد أو تعديل التوزيع)</button>`;
+  if(st==='over') ctrl=`<div class="phase">${winText(r.winner)}</div><div class="box"><h3 style="margin-top:0">النقاط</h3>${towers()}</div>${winnersBox()}<button class="btn main" data-a="h" data-v="deal">لعبة جديدة بنفس اللاعبين</button>
+    <button class="btn" data-a="h" data-v="lobby">رجوع للانتظار (لاعبين جدد أو تعديل التوزيع)</button>${recapBox()}${historyBox()}`;
   return `${topBar('غرفة '+esc(r.code),phaseTag())}<div class="cols"><div>
     ${st==='lobby'?'':`<div class="box">${autoBox()}</div>`}
-    <div class="box">${ctrl}</div>
+    <div class="box">${ctrl}${st==='lobby'?'':endBox()}</div>
     ${st==='lobby'?autoBox()+hostJoinBox()+historyBox():''}
     ${st==='lobby'?`<div class="box center"><div id="qr" class="qr"></div><p class="sub" style="margin-top:8px;word-break:break-all">${esc(joinUrl(r.code))}</p>${shareBox(r.code)}</div>`:manageBox()}
   </div><div>
@@ -1253,9 +1295,9 @@ document.addEventListener('click',e=>{
     rules:()=>{S.screen='rules';render()}, home:()=>{S.screen='home';render()},
     join:()=>joinFlow(document.getElementById('code').value.trim()),
     name:()=>joinPlayer(document.getElementById('name').value.trim()),
-    leave, reveal:()=>{S.revealed=true;render()}, hide:()=>{S.revealed=false;render()},
+    leave:leaveRoom, reveal:()=>{S.revealed=true;render()}, hide:()=>{S.revealed=false;render()},
     act:()=>act(v), skipShot, vote:()=>castVote(v),
-    adj:()=>H.adj(v).catch(onErr), distReset:()=>H.distReset().catch(onErr), pointsAdj:()=>H.adjustPoints(v).catch(onErr), pointsSet:()=>H.setPoints(v).catch(onErr), sound:()=>SFX.toggle(), narr:()=>NARR.toggle(), tutDone:()=>{ls.set('mafia_tut','1');render();}, transfer:()=>hostAction('transfer',v), shareRoom:()=>navigator.share&&navigator.share({title:'مافيا',text:'تعال العب مافيا معنا 🕵️',url:joinUrl(S.code)}).catch(()=>{}), kick:()=>hostAction('kick',v), h:()=>hostAction(v), timer:()=>H.timer(v).catch(onErr), joinSelf:()=>hostAction('joinSelf'), leaveSelf:()=>hostAction('leaveSelf')
+    adj:()=>H.adj(v).catch(onErr), distReset:()=>H.distReset().catch(onErr), pointsAdj:()=>H.adjustPoints(v).catch(onErr), pointsSet:()=>H.setPoints(v).catch(onErr), testMode:()=>{if(TEST_MODE){ls.del('mafia_last');location.href=location.pathname;}else{location.href=location.pathname+'?test=1';}}, sound:()=>SFX.toggle(), narr:()=>NARR.toggle(), tutDone:()=>{ls.set('mafia_tut','1');render();}, transfer:()=>hostAction('transfer',v), shareRoom:()=>navigator.share&&navigator.share({title:'مافيا',text:'تعال العب مافيا معنا 🕵️',url:joinUrl(S.code)}).catch(()=>{}), kick:()=>hostAction('kick',v), h:()=>hostAction(v), timer:()=>H.timer(v).catch(onErr), joinSelf:()=>hostAction('joinSelf'), leaveSelf:()=>hostAction('leaveSelf')
   }[b.dataset.a]||(()=>{}))();
 });
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){wakeLock=null;tick();}});
