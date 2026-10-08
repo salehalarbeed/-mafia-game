@@ -340,6 +340,7 @@ body::before{filter:none!important}
 .vcount{min-width:30px;text-align:center;background:#c9a227;color:#1b1408;border-radius:999px;font-weight:800;padding:2px 10px}
 .vnames{display:flex;flex-wrap:wrap;gap:6px}.vnames span{background:#ffffff10;border-radius:999px;padding:3px 10px;font-size:14px}
 body[data-mode="tv"] .voters{max-width:1100px;margin:10px auto}body[data-mode="tv"] .vnames span{font-size:clamp(16px,1.3vw,26px)}body[data-mode="tv"] .vhead b{font-size:clamp(20px,1.8vw,34px)}
+.leave-btn{margin-top:22px!important;opacity:.75}
 </style>
 </head>
 <body>
@@ -451,6 +452,15 @@ function enter(code,mode){
     on(col('actions').doc(UID),s=>{S.myAction=s.exists?s.data():null;render();});
   }
   S.screen='room'; render();
+}
+async function playerLeave(){
+  const st=S.room?.status, m=me();
+  if(S.mode==='player'&&m&&st&&st!=='over'){
+    const msg=st==='lobby'?'تطلع من الغرفة؟':'تطلع من الغرفة؟ بتنحسب طالع من اللعبة وما تقدر ترجع لها';
+    if(!confirm(msg))return;
+    try{ if(st==='lobby')await col('players').doc(UID).delete(); else if(m.alive)await col('players').doc(UID).update({left:true}); }catch(e){}
+  }
+  leave();
 }
 async function leaveRoom(){
   if(S.mode==='host'&&isHost()&&S.room&&S.room.status!=='lobby'){
@@ -820,9 +830,16 @@ function failover(){
   if(S.claiming&&Date.now()-S.claiming<15000)return;S.claiming=Date.now();
   roomRef(S.code).update({hostUid:UID,hostBeat:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});
 }
+function leftCheck(){
+  if(S.mode!=='host'||!S.room||!isHost()||hostBusy)return;
+  const st=S.room.status;if(['lobby','over','revenge'].includes(st))return;
+  const p=S.players.find(x=>x.left&&x.alive);if(!p||S.removing===p.id)return;
+  S.removing=p.id;const msg=`🚪 ${p.name} طلع من الغرفة`;
+  hostBusy=true;finishPhase([p.id],S.room.news?S.room.news+'\n'+msg:msg,st,[msg],{protectionApplied:true}).catch(onErr).finally(()=>{hostBusy=false;setTimeout(()=>{S.removing=null},3000);});
+}
 async function tick(){
   updateCountdowns();
-  hostBeat();failover();
+  hostBeat();failover();leftCheck();
   if(S.mode!=='host'||!S.room||!isHost()||!autoOn()||hostBusy)return;
   keepAwake();
   const r=S.room,now=Date.now(),key=[r.gameNo,r.round,r.status,(r.pendingRevenge||[])[0]||'',r.revote?'rv':'',r.stage||''].join(':');
@@ -980,7 +997,7 @@ document.addEventListener('pointerdown',()=>SFX.unlock(),{capture:true});
 let lastTick='';
 const NARR={
   voice(){if(!window.speechSynthesis)return null;return speechSynthesis.getVoices().find(v=>/^ar/i.test(v.lang))||null;},
-  on(){return S.mode==='tv'&&SFX.on()&&ls.get('mafia_narr')!=='0'&&!!this.voice();},
+  on(){return false;},
   say(t,delay=1200){if(!this.on()||!t)return;const v=this.voice();const txt=String(t).replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu,'').replace(/\n/g,'. ');
     setTimeout(()=>{try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.voice=v;u.lang=v.lang;u.rate=1;u.pitch=1;speechSynthesis.speak(u);}catch(e){}},delay);},
   toggle(){ls.set('mafia_narr',ls.get('mafia_narr')==='0'?'1':'0');render();}
@@ -1148,7 +1165,7 @@ function playerBody(){
 function vPlayer(){
   const m=me();
   if(!m) return `<div class="box center">مو موجود في هالجلسة.<button class="btn" data-a="leave">رجوع</button></div>`;
-  return topBar(esc(m.name),phaseTag())+playerBody();
+  return topBar(esc(m.name),phaseTag())+playerBody()+`<div class="center"><button class="btn small noic leave-btn" data-a="playerLeave">🚪 اطلع من الغرفة</button></div>`;
 }
 function vTV(){
   const r=S.room, alive=alivePlayers(); let body='';
@@ -1162,7 +1179,7 @@ function vTV(){
     ${['morning','result'].includes(r.status)&&r.news?`<div class="box news">${esc(r.news)}</div>`:''}
     ${r.status==='defense'?`<div class="box news">${esc(r.news)}</div><div class="defense-tile">${S.players.filter(p=>p.id===r.accused).map(p=>playerTile(p)).join('')}</div>`:''}${r.status==='vote'&&r.stage==='verdict'?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'&&r.revote?`<div class="box news">${esc(r.news)}</div>`:''}${votersBox()}${r.status==='vote'?(((Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length)>=alive.length-(r.stage==='verdict'?1:0))?`<p class="news allin">✔ الكل صوّت… النتيجة الحين</p>`:`<p class="news">صوّتوا من جوالاتكم (${Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length}/${alive.length-(r.stage==='verdict'?1:0)})</p>`):''}
     <div class="grid" style="margin-top:20px">${S.players.map(p=>playerTile(p)).join('')}</div>`;
-  return `${(S.room.status==='lobby'||S.room.status==='over')?igLink('tv-ig'):''}<div class="tv">${topBar('غرفة '+esc(r.code),r.round?'جولة '+r.round:PHASE[r.status])}${body}</div>`;
+  return `${(S.room.status==='lobby'||S.room.status==='over')?igLink('tv-ig'):''}<div class="tv">${topBar('غرفة '+esc(r.code),r.round?'جولة '+r.round:PHASE[r.status])}${body}<div class="center"><button class="btn small noic leave-btn" data-a="leave">🚪 اطلع</button></div></div>`;
 }
 function hostPointsBoard(){
   return [...S.players].sort((a,b)=>(b.points||0)-(a.points||0)).map(p=>`<div class="box" style="margin-top:8px;padding:10px"><b>${esc(p.name)}</b><div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="btn small" data-a="pointsAdj" data-v="${p.id}:-1" aria-label="تقليل نقاط ${esc(p.name)}">−</button><input id="points_${p.id}" type="number" step="1" min="-1000000" max="1000000" value="${p.points||0}" aria-label="نقاط ${esc(p.name)}" style="width:90px;margin:0;padding:6px"><button class="btn small" data-a="pointsAdj" data-v="${p.id}:1" aria-label="زيادة نقاط ${esc(p.name)}">+</button><button class="btn small" data-a="pointsSet" data-v="${p.id}">حفظ</button></div></div>`).join('');
@@ -1311,7 +1328,6 @@ function renderNow(){
   else html=vPlayer();
   if(S.screen==='room'&&S.room)html=sceneBanner()+html;
   const keep=document.activeElement?.id, val=keep?document.getElementById(keep)?.value:null;
-  if(S.screen==='room'&&S.room&&S.mode==='tv'&&NARR.voice())html+=`<button class="sound-btn narr-btn" data-a="narr" aria-label="الراوي">${ls.get('mafia_narr')!=='0'?'🎙️':'🤐'}</button>`;
   if(S.screen==='room'&&S.room)html+=`<button class="sound-btn" data-a="sound" aria-label="${SFX.on()?'إيقاف الصوت':'تشغيل الصوت'}">${SFX.on()?'🔊':'🔇'}</button>`;
   if(TEST_MODE)html+='<div class="test-badge">🧪 وضع التجربة: كل تبويب لاعب</div>';
   if(html===S.lastHtml&&!newlyDead.size){updateCountdowns();return;}
@@ -1337,7 +1353,7 @@ document.addEventListener('click',e=>{
     leave:leaveRoom, reveal:()=>{S.revealed=true;render()}, hide:()=>{S.revealed=false;render()},
     act:()=>act(v), skipShot, vote:()=>castVote(v),
     adj:()=>H.adj(v).catch(onErr), distReset:()=>H.distReset().catch(onErr), pointsAdj:()=>H.adjustPoints(v).catch(onErr), pointsSet:()=>H.setPoints(v).catch(onErr), testMode:()=>{if(TEST_MODE){ls.del('mafia_last');location.href=location.pathname;}else{location.href=location.pathname+'?test=1';}}, storageOk:()=>{ls.set('mafia_storage_ok','1');render();}, wipe:async()=>{if(!confirm('تمسح كل بيانات اللعبة من هذا الجهاز؟ بتطلع من أي غرفة وتصير لاعب جديد'))return;try{localStorage.clear();sessionStorage.clear();}catch(e){}try{await auth.signOut();}catch(e){}location.href=location.pathname;},
-    storeOk:()=>{ls.set('mafia_store_ok','1');render();}, sound:()=>SFX.toggle(), narr:()=>NARR.toggle(), tutDone:()=>{ls.set('mafia_tut','1');render();}, transfer:()=>hostAction('transfer',v), shareRoom:()=>navigator.share&&navigator.share({title:'مافيا',text:'تعال العب مافيا معنا 🕵️',url:joinUrl(S.code)}).catch(()=>{}), kick:()=>hostAction('kick',v), h:()=>hostAction(v), timer:()=>H.timer(v).catch(onErr), joinSelf:()=>hostAction('joinSelf'), leaveSelf:()=>hostAction('leaveSelf')
+    storeOk:()=>{ls.set('mafia_store_ok','1');render();}, playerLeave:()=>playerLeave(), sound:()=>SFX.toggle(), narr:()=>NARR.toggle(), tutDone:()=>{ls.set('mafia_tut','1');render();}, transfer:()=>hostAction('transfer',v), shareRoom:()=>navigator.share&&navigator.share({title:'مافيا',text:'تعال العب مافيا معنا 🕵️',url:joinUrl(S.code)}).catch(()=>{}), kick:()=>hostAction('kick',v), h:()=>hostAction(v), timer:()=>H.timer(v).catch(onErr), joinSelf:()=>hostAction('joinSelf'), leaveSelf:()=>hostAction('leaveSelf')
   }[b.dataset.a]||(()=>{}))();
 });
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){wakeLock=null;tick();}});
