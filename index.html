@@ -335,6 +335,11 @@ body::before{filter:none!important}
 .store-note p{margin:0;font-size:14px;color:#efe6d8}.store-note a{color:#f2d47a}
 .legal-links{flex-wrap:wrap;justify-content:center}
 :where(a,button,input,summary,[role=button],[tabindex]):focus-visible{outline:3px solid #f2d47a!important;outline-offset:3px!important;border-radius:10px}
+.voters .vrow{padding:10px 0;border-bottom:1px solid #ffffff12}.voters .vrow:last-child{border-bottom:0}
+.vhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.vcount{min-width:30px;text-align:center;background:#c9a227;color:#1b1408;border-radius:999px;font-weight:800;padding:2px 10px}
+.vnames{display:flex;flex-wrap:wrap;gap:6px}.vnames span{background:#ffffff10;border-radius:999px;padding:3px 10px;font-size:14px}
+body[data-mode="tv"] .voters{max-width:1100px;margin:10px auto}body[data-mode="tv"] .vnames span{font-size:clamp(16px,1.3vw,26px)}body[data-mode="tv"] .vhead b{font-size:clamp(20px,1.8vw,34px)}
 </style>
 </head>
 <body>
@@ -747,6 +752,7 @@ const H={
     b.update(roomRef(S.code),{status:'vote',stage:'verdict',revote:false,candidates:null,news:`⚖️ تصويت نهائي: يطلع ${nameOf(S.room.accused)} أو يبقى؟`,deadline:dlFor('vote')});
     await b.commit();
   },
+  async toggleVoters(){if(S.room.status!=='lobby')return;await roomRef(S.code).update({showVoters:!S.room.showVoters});},
   async toggleDefense(){if(S.room.status!=='lobby')return;await roomRef(S.code).update({defense:S.room.defense===false});},
   async kick(id){
     if(S.room.status==='lobby'){if(confirm('تشيل هاللاعب؟'))await col('players').doc(id).delete();return;}
@@ -1154,7 +1160,7 @@ function vTV(){
     ${r.status==='day0'?'<p class="news">كل واحد يكشف شخصيته على جواله بسرية 🤫</p>':''}
     ${r.status==='night'?(r.allIn?'<p class="news allin">✔ الكل اختار… الصبح بعد ثواني</p>':'<p class="news">الكل يغمّض… أصحاب الأدوار يختارون من جوالاتهم</p>'):''}
     ${['morning','result'].includes(r.status)&&r.news?`<div class="box news">${esc(r.news)}</div>`:''}
-    ${r.status==='defense'?`<div class="box news">${esc(r.news)}</div><div class="defense-tile">${S.players.filter(p=>p.id===r.accused).map(p=>playerTile(p)).join('')}</div>`:''}${r.status==='vote'&&r.stage==='verdict'?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'&&r.revote?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'?(((Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length)>=alive.length-(r.stage==='verdict'?1:0))?`<p class="news allin">✔ الكل صوّت… النتيجة الحين</p>`:`<p class="news">صوّتوا من جوالاتكم (${Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length}/${alive.length-(r.stage==='verdict'?1:0)})</p>`):''}
+    ${r.status==='defense'?`<div class="box news">${esc(r.news)}</div><div class="defense-tile">${S.players.filter(p=>p.id===r.accused).map(p=>playerTile(p)).join('')}</div>`:''}${r.status==='vote'&&r.stage==='verdict'?`<div class="box news">${esc(r.news)}</div>`:''}${r.status==='vote'&&r.revote?`<div class="box news">${esc(r.news)}</div>`:''}${votersBox()}${r.status==='vote'?(((Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length)>=alive.length-(r.stage==='verdict'?1:0))?`<p class="news allin">✔ الكل صوّت… النتيجة الحين</p>`:`<p class="news">صوّتوا من جوالاتكم (${Object.keys(S.votes).filter(id=>alive.some(p=>p.id===id)).length}/${alive.length-(r.stage==='verdict'?1:0)})</p>`):''}
     <div class="grid" style="margin-top:20px">${S.players.map(p=>playerTile(p)).join('')}</div>`;
   return `${(S.room.status==='lobby'||S.room.status==='over')?igLink('tv-ig'):''}<div class="tv">${topBar('غرفة '+esc(r.code),r.round?'جولة '+r.round:PHASE[r.status])}${body}</div>`;
 }
@@ -1165,6 +1171,7 @@ function autoBox(){
   const r=S.room,t=T(),on=autoOn();
   if(r.status==='lobby')return `<div class="box"><h3 style="margin-top:0">🤖 الإدارة التلقائية</h3>
     <div class="row"><span>اللعبة تمشي لحالها</span><button class="btn small noic ${on?'gold':''}" data-a="h" data-v="${on?'pause':'resume'}">${on?'مفعّلة ✔':'متوقفة ✕'}</button></div>
+    <div class="row"><span>👁️ إظهار مين صوّت على مين</span><button class="btn small noic ${r.showVoters?'gold':''}" data-a="h" data-v="toggleVoters">${r.showVoters?'مفعّل ✔':'مخفي ✕'}</button></div>
     <div class="row"><span>🎤 مرحلة الدفاع قبل الإقصاء</span><button class="btn small noic ${r.defense!==false?'gold':''}" data-a="h" data-v="toggleDefense">${r.defense!==false?'مفعّلة ✔':'متوقفة ✕'}</button></div>
     ${[['reveal','كشف الشخصيات'],['night','مدة الليل'],['talk','مدة النقاش'],['vote','مدة التصويت'],['defense','مدة الدفاع']].map(([k,l])=>`<div class="row"><span>${l}</span><span style="display:flex;gap:8px;align-items:center"><button class="btn small" data-a="timer" data-v="${k}:-1" aria-label="تقليل ${l}">−</button><b style="min-width:56px;text-align:center">${fmt(t[k])}</b><button class="btn small" data-a="timer" data-v="${k}:1" aria-label="زيادة ${l}">+</button></span></div>`).join('')}
     <p class="sub" style="margin-top:8px">الليل يخلص أول ما الكل يختار، والتصويت أول ما الكل يصوّت، أو لما ينتهي الوقت. خل هالجهاز مفتوح طول اللعبة.</p></div>`;
@@ -1195,6 +1202,16 @@ function historyBox(){
     const best=g.players[0];
     return `<div class="hist-game"><div class="hist-head"><b>لعبة ${g.game}</b><span class="tag ${g.winner==='mafia'?'mafia':'town'}">${winText(g.winner)}</span></div>
       <div class="hist-players">${g.players.map((p,i)=>`<span class="hist-p ${i===0&&p.pts>0?'top':''}">${i===0&&p.pts>0?'👑 ':''}${esc(p.name)} <b>${p.pts}</b></span>`).join('')}</div></div>`;}).join('')}</details>`;
+}
+function votersBox(){
+  const r=S.room;if(!r||!r.showVoters||r.status!=='vote'||S.mode!=='tv')return '';
+  const alive=alivePlayers(),by={};
+  Object.entries(S.votes).forEach(([v,t])=>{if(alive.some(p=>p.id===v))(by[t]=by[t]||[]).push(nameOf(v));});
+  let rows=r.stage==='verdict'?[[r.accused,'👎 يطلع'],['skip','✋ يبقى']]
+    :Object.keys(by).filter(k=>k!=='skip').sort((a,b)=>by[b].length-by[a].length).map(k=>[k,nameOf(k)]);
+  if(r.stage!=='verdict'&&by.skip)rows.push(['skip','امتنعوا']);
+  const body=rows.length?rows.map(([k,l])=>`<div class="vrow"><div class="vhead"><b>${esc(l)}</b><span class="vcount">${(by[k]||[]).length}</span></div><div class="vnames">${(by[k]||[]).map(n=>`<span>${esc(n)}</span>`).join('')||'<span class="sub">—</span>'}</div></div>`).join(''):'<p class="sub">ما في أصوات للحين</p>';
+  return `<div class="box voters"><h3 style="margin-top:0">مين صوّت على مين</h3>${body}</div>`;
 }
 function recapBox(){
   const lines=S.room.recap||[];if(!lines.length)return '';
@@ -1296,8 +1313,6 @@ function renderNow(){
   const keep=document.activeElement?.id, val=keep?document.getElementById(keep)?.value:null;
   if(S.screen==='room'&&S.room&&S.mode==='tv'&&NARR.voice())html+=`<button class="sound-btn narr-btn" data-a="narr" aria-label="الراوي">${ls.get('mafia_narr')!=='0'?'🎙️':'🤐'}</button>`;
   if(S.screen==='room'&&S.room)html+=`<button class="sound-btn" data-a="sound" aria-label="${SFX.on()?'إيقاف الصوت':'تشغيل الصوت'}">${SFX.on()?'🔊':'🔇'}</button>`;
-  if(!ls.get('mafia_storage_ok')&&S.screen==='home')html+=`<div class="storage-note" role="region" aria-label="تنبيه التخزين"><p>نستخدم تخزين ضروري فقط على جهازك (مثل الغرفة الحالية وتشغيل الصوت) عشان تشتغل اللعبة. ما نستخدم كوكيز إعلانية أو تتبع. <a href="privacy.html#storage">التفاصيل</a></p><button class="btn small noic" data-a="storageOk">تمام</button></div>`;
-  if(S.screen==='home'&&!ls.get('mafia_store_ok'))html+='<div class="store-note" role="region" aria-label="تنبيه التخزين"><p>نستخدم تخزيناً <b>ضرورياً فقط</b> في متصفحك لتشغيل اللعبة، بدون تتبع أو إعلانات. <a href="privacy.html#cookies">التفاصيل</a></p><button class="btn small noic" data-a="storeOk">تمام</button></div>';
   if(TEST_MODE)html+='<div class="test-badge">🧪 وضع التجربة: كل تبويب لاعب</div>';
   if(html===S.lastHtml&&!newlyDead.size){updateCountdowns();return;}
   S.lastHtml=html;
